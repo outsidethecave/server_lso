@@ -10,37 +10,37 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <errno.h>
-
-
-#define PORT 50000
+#include "llist.h"
 
 #define TRUE 1
 #define FALSE 0
 #define BOOLSTRINGSIZE 2
-
+#define PORT 50000
 #define MAX_CREDENTIALS_LENGTH 50
-
+#define BUFFER_LENGTH 256
+#define USER_FILE "utenti.txt"
 #define SIGNUP 1
 #define LOGIN 2
 
+
 typedef struct ClientThreadArg {
+    char nickname[MAX_CREDENTIALS_LENGTH];
     int socket;
-    int threadnum;     // di prova
 } ClientThreadArg;
 
-int listener_socket_fd = 0;
-int new_socket = 0;
-pthread_t clientThread_id[50];
-int clientnum = 0;
+
 int users_fd;
+List* activeUsersList = NULL;
+pthread_t clientThread_id[50];
 pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t signup_lock = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t login_lock = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t list_lock = PTHREAD_MUTEX_INITIALIZER;
 
 
 int userExists (char nickname[]) {
 
-    char read_char[1];   // carattere letto
+    char read_char[1];
     char nick_to_compare[MAX_CREDENTIALS_LENGTH];
     int password_reached = FALSE;
 
@@ -108,34 +108,25 @@ int saveCredentialsToFile (char credentials_buffer[]) {
     return TRUE;
 
 }
-unsigned long hash(unsigned char *str) {
+int logIn (char credentials_buffer[MAX_CREDENTIALS_LENGTH], char nickname_to_fill[MAX_CREDENTIALS_LENGTH]) {
 
-    unsigned long hash = 5381;
-    int c;
-
-    while (c = *str++)
-        hash = ((hash << 5) + hash) + c;
-
-    return hash;
-
-}
-int logIn (char credentials_buffer[]) {
-
-    char read_char[1];   // carattere letto
-    char nickname[MAX_CREDENTIALS_LENGTH] = {0};
-    char password[MAX_CREDENTIALS_LENGTH] = {0};
-    char nick_to_compare[MAX_CREDENTIALS_LENGTH] = {0};
-    char password_to_compare[MAX_CREDENTIALS_LENGTH] = {0};
+    char read_char[1];
+    char nickname[MAX_CREDENTIALS_LENGTH];
+    char password[MAX_CREDENTIALS_LENGTH];
+    char nick_to_compare[MAX_CREDENTIALS_LENGTH];
+    char password_to_compare[MAX_CREDENTIALS_LENGTH];
 
     int i = 1, j = 0, nick_flag = TRUE;
     for (; credentials_buffer[i] != '\n'; i++) {
         if (credentials_buffer[i] == '|') {
             nickname[i-1] = '\0';
+            nickname_to_fill[i-1] = '\0';
             nick_flag = FALSE;
         }
         else {
             if (nick_flag) {
                 nickname[i-1] = credentials_buffer[i];
+                nickname_to_fill[i-1] = credentials_buffer[i];
             }
             else {
                 password[j] = credentials_buffer[i];
@@ -145,7 +136,6 @@ int logIn (char credentials_buffer[]) {
     }
     password[i] = '\0';
 
-    printf("EXTRACTED NICKNAME AND PASSWORD: %s  %s\n", nickname, password);
     if (lseek(users_fd, 0, SEEK_SET) < 0) {
         perror("Errore di seek");
         exit(-1);
@@ -155,7 +145,6 @@ int logIn (char credentials_buffer[]) {
     while (read(users_fd, read_char, 1) > 0) {
         if (read_char[0] == ' ') {
             nick_to_compare[i] = '\0';
-            printf("NICK TO COMPARE: %s\n", nick_to_compare);
             if (strcmp(nickname, nick_to_compare) == 0) {
                 nickname_found = TRUE;
             }
@@ -164,11 +153,8 @@ int logIn (char credentials_buffer[]) {
         }
         else if (read_char[0] == '\n') {
             password_to_compare[j] = '\0';
-            printf("PASSWORD TO COMPARE: %s\n", password_to_compare);
             if (nickname_found == TRUE) {
-                printf("NICKNAME FOUND, RELATIVE PASSWORD: %s\n", password_to_compare);
                 if (strcmp(password, password_to_compare) == 0) {
-                    printf("LOGIN SUCCESFUL");
                     return 0;
                 }
                 else
@@ -196,14 +182,24 @@ int logIn (char credentials_buffer[]) {
     return 2;
 
 }
+void onClientDisconnection (char nickname[MAX_CREDENTIALS_LENGTH], int client_socket) {
+    printf("Errore di ricezione dal client %d: client disconnesso\n", client_socket);
+    activeUsersList = delete(activeUsersList, nickname, areEqual);
+    memset(nickname, 0, MAX_CREDENTIALS_LENGTH);
+}
 
 
-void* clientThread (void* arg) {
+void* clientThread (void* argument) {
 
-    int thread_socket = ((ClientThreadArg*)arg)->socket;
-    char client_buffer[50] = {0};
+    ClientThreadArg* arg = (ClientThreadArg*)argument;
+
+    int thread_socket = arg->socket;
+
+    char client_buffer[BUFFER_LENGTH];
+
     int client_action;
     int signupResult, loginResult;
+
 
     while (1) {
 
@@ -214,8 +210,7 @@ void* clientThread (void* arg) {
             pthread_exit(NULL);
         }
 
-        client_action = client_buffer[0] - '0'; // Converte char a cifra singola nel rispettivo int
-
+        client_action = client_buffer[0] - '0';   // Converte char a cifra singola nel rispettivo int
 
         switch (client_action) {
 
@@ -225,7 +220,9 @@ void* clientThread (void* arg) {
                 pthread_mutex_unlock(&signup_lock);
                 if (signupResult == TRUE) {
                     if (send(thread_socket, "1\n", BOOLSTRINGSIZE, MSG_NOSIGNAL) < 0) {
-                        printf("Errore di ricezione del client %d: client disconnesso\n", thread_socket);
+                        pthread_mutex_lock(&list_lock);
+                        onClientDisconnection(arg->nickname, thread_socket);
+                        pthread_mutex_unlock(&list_lock);
                         close(thread_socket);
                         pthread_exit(NULL);
                     }
@@ -235,7 +232,9 @@ void* clientThread (void* arg) {
                 }
                 else {
                     if (send(thread_socket, "0\n", BOOLSTRINGSIZE, MSG_NOSIGNAL) < 0) {
-                        printf("Errore di ricezione del client %d: client disconnesso\n", thread_socket);
+                        pthread_mutex_lock(&list_lock);
+                        onClientDisconnection(arg->nickname, thread_socket);
+                        pthread_mutex_unlock(&list_lock);
                         close(thread_socket);
                         pthread_exit(NULL);
                     }
@@ -244,30 +243,39 @@ void* clientThread (void* arg) {
 
             case LOGIN:
                 pthread_mutex_lock(&login_lock);
-                printf("CREDENTIALS BUFFER: %s", client_buffer);
-                loginResult = logIn(client_buffer);
-                printf("LOGIN RESULT: %d\n", loginResult);
+                loginResult = logIn(client_buffer, arg->nickname);
                 pthread_mutex_unlock(&login_lock);
                 if (loginResult == 0) {
                     if (send(thread_socket, "0\n", BOOLSTRINGSIZE, MSG_NOSIGNAL) < 0) {
-                        printf("Errore di ricezione del client %d: client disconnesso\n", thread_socket);
+                        pthread_mutex_lock(&list_lock);
+                        onClientDisconnection(arg->nickname, thread_socket);
+                        pthread_mutex_unlock(&list_lock);
                         close(thread_socket);
                         pthread_exit(NULL);
                     }
                     else {
-                        printf("Il client %d effettua un login\n\n", thread_socket);
+                        pthread_mutex_lock(&list_lock);
+                        activeUsersList = append(activeUsersList, arg->nickname);
+                        pthread_mutex_unlock(&list_lock);
+                        printf("%s si connette sul client %d\n\n", arg->nickname, thread_socket);
                     }
                 }
                 else if (loginResult == 1) {
+                    memset(arg->nickname, 0, MAX_CREDENTIALS_LENGTH);
                     if (send(thread_socket, "1\n", BOOLSTRINGSIZE, MSG_NOSIGNAL) < 0) {
-                        printf("Errore di ricezione del client %d: client disconnesso\n", thread_socket);
+                        pthread_mutex_lock(&list_lock);
+                        onClientDisconnection(arg->nickname, thread_socket);
+                        pthread_mutex_unlock(&list_lock);
                         close(thread_socket);
                         pthread_exit(NULL);
                     }
                 }
                 else {
+                    memset(arg->nickname, 0, MAX_CREDENTIALS_LENGTH);
                     if (send(thread_socket, "2\n", BOOLSTRINGSIZE, MSG_NOSIGNAL) < 0) {
-                        printf("Errore di ricezione del client %d: client disconnesso\n", thread_socket);
+                        pthread_mutex_lock(&list_lock);
+                        onClientDisconnection(arg->nickname, thread_socket);
+                        pthread_mutex_unlock(&list_lock);
                         close(thread_socket);
                         pthread_exit(NULL);
                     }
@@ -275,19 +283,7 @@ void* clientThread (void* arg) {
             break;
 
         }
-        /*if (strcmp(buffer, "exit\n") == 0 || valread <= 0) {
-            close(thread_socket);
-            thread_socket = 0;
-            memset(buffer, 0, 1024);
-            printf("\nClient %d exited.\n\n", id);
-            pthread_exit(NULL);
-        }
-        if (thread_socket != 0) {
-            buffer[strcspn(buffer, "\n")] = '\0';
-            printf("Client %d says: %s\n", id, buffer);
-            valsend = send(thread_socket, server_msg, strlen(server_msg), 0);
-            memset(buffer, 0, 1024);
-        }*/
+        // buffer[strcspn(buffer, "\n")] = '\0';
 
     }
 
@@ -298,49 +294,57 @@ void* clientThread (void* arg) {
 int main(int argc, char const *argv[]) {
 
     struct sockaddr_in address;
-
-    int opt = 1;
     int addrlen = sizeof(address);
+    int options = 1;
 
-    // Creazione socket del server
+    int listener_socket_fd = 0, new_socket = 0;
+    int clientnum = 0;
+
+    ClientThreadArg* arg;
+
+
+
+    users_fd = open(USER_FILE, O_RDWR | O_CREAT | O_APPEND, S_IRWXU);
+    if (users_fd == -1) {
+      perror("Errore di apertura del file degli utenti");
+      exit(-1);
+    }
+
+
+
     if ((listener_socket_fd = socket(AF_INET, SOCK_STREAM, 0)) == 0) {
         perror("Creazione della socket fallita");
         exit(EXIT_FAILURE);
     }
     else
-        printf("Socket created...\n");
+        printf("Socket di ascolto creata...\n");
 
-    if (setsockopt(listener_socket_fd, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT, &opt, sizeof(opt))) {
+    if (setsockopt(listener_socket_fd, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT, &options, sizeof(options))) {
         perror("setsockopt");
         exit(EXIT_FAILURE);
     }
     else
-        printf("Socket options set...\n");
+        printf("Opzioni socket impostate...\n");
 
     address.sin_family = AF_INET;
     address.sin_addr.s_addr = htonl(INADDR_ANY);
     address.sin_port = htons(PORT);
 
-    // Forcefully attaching socket to the port
     if (bind(listener_socket_fd, (struct sockaddr *) &address, sizeof(address)) < 0) {
         perror("Bind failed");
         exit(EXIT_FAILURE);
     }
     else
-        printf("Socket bound to port %d...\n", PORT);
+        printf("Bound alla porta %d effettuato...\n", PORT);
 
     if (listen(listener_socket_fd, 50) < 0) {
         perror("Listen error");
         exit(EXIT_FAILURE);
     }
     else
-        printf("Listening...\n\n");
+        printf("In ascolto...\n\n");
 
-    users_fd = open("utenti.txt", O_RDWR | O_CREAT | O_APPEND, S_IRWXU);
-    if (users_fd == -1) {
-      perror("Errore di apertura del file degli utenti");
-      exit(-1);
-    }
+
 
     while(1) {
 
@@ -351,9 +355,8 @@ int main(int argc, char const *argv[]) {
         }
         else {
             printf("\nClient found.\n\n");
-            ClientThreadArg* arg = (ClientThreadArg*)malloc(sizeof(ClientThreadArg));
+            arg = (ClientThreadArg*)malloc(sizeof(ClientThreadArg));
             arg->socket = new_socket;
-            arg->threadnum = clientnum+1;
             pthread_create(&(clientThread_id[clientnum]), NULL, &clientThread, arg);
         }
 
