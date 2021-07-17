@@ -11,9 +11,11 @@ typedef struct List {
 } List;
 
 
-int areEqual (void* p1, void* p2);
+int areEqual_str (void* p1, void* p2);
 
-void printNode (List* node);
+void printNode_str (List* node);
+
+char* toString_str (void* p1);
 
 
 List* newNode (void* data);
@@ -21,6 +23,8 @@ List* newNode (void* data);
 List* append (List* list, void* data);
 
 List* delete (List* list, void* data, int (*areEqual)(void*, void*));
+
+int length (List* list);
 
 void freelist (List* list);
 

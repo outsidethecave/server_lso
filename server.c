@@ -14,13 +14,13 @@
 
 #define TRUE 1
 #define FALSE 0
-#define BOOLSTRINGSIZE 2
 #define PORT 50000
 #define MAX_CREDENTIALS_LENGTH 50
 #define BUFFER_LENGTH 256
 #define USER_FILE "utenti.txt"
 #define SIGNUP 1
 #define LOGIN 2
+#define VIEW_ACTIVE_USERS 3
 
 
 typedef struct ClientThreadArg {
@@ -108,7 +108,7 @@ int saveCredentialsToFile (char credentials_buffer[]) {
     return TRUE;
 
 }
-int logIn (char credentials_buffer[MAX_CREDENTIALS_LENGTH], char nickname_to_fill[MAX_CREDENTIALS_LENGTH]) {
+int logIn (char credentials_buffer[MAX_CREDENTIALS_LENGTH], ClientThreadArg* clientArg) {
 
     char read_char[1];
     char nickname[MAX_CREDENTIALS_LENGTH];
@@ -120,13 +120,13 @@ int logIn (char credentials_buffer[MAX_CREDENTIALS_LENGTH], char nickname_to_fil
     for (; credentials_buffer[i] != '\n'; i++) {
         if (credentials_buffer[i] == '|') {
             nickname[i-1] = '\0';
-            nickname_to_fill[i-1] = '\0';
+            clientArg->nickname[i-1] = '\0';
             nick_flag = FALSE;
         }
         else {
             if (nick_flag) {
                 nickname[i-1] = credentials_buffer[i];
-                nickname_to_fill[i-1] = credentials_buffer[i];
+                clientArg->nickname[i-1] = credentials_buffer[i];
             }
             else {
                 password[j] = credentials_buffer[i];
@@ -182,11 +182,40 @@ int logIn (char credentials_buffer[MAX_CREDENTIALS_LENGTH], char nickname_to_fil
     return 2;
 
 }
-void onClientDisconnection (char nickname[MAX_CREDENTIALS_LENGTH], int client_socket) {
-    printf("Errore di ricezione dal client %d: client disconnesso\n", client_socket);
-    activeUsersList = delete(activeUsersList, nickname, areEqual);
-    memset(nickname, 0, MAX_CREDENTIALS_LENGTH);
+void onClientDisconnection (ClientThreadArg* clientArg) {
+    printf("Errore di ricezione dal client %d: client disconnesso\n", clientArg->socket);
+    activeUsersList = delete(activeUsersList, clientArg->nickname, areEqual_str);
+    memset(clientArg->nickname, 0, MAX_CREDENTIALS_LENGTH);
 }
+int sendUsersList (ClientThreadArg* clientArg) {
+
+    List* p = activeUsersList;
+    int nick_size;
+    char* nickname;
+    int sendval; //debug
+
+    while (p) {
+        nick_size = strlen((char*)(p->data)) + 1;
+        nickname = (char*)malloc(nick_size * sizeof(char));
+        strcpy(nickname, (char*)(p->data));
+        strcat(nickname, "\n");
+        printf("LISTA: ");
+        print(activeUsersList, printNode_str);
+        printf("NICKNAME: %s", nickname);
+        if ((sendval = send(clientArg->socket, nickname, nick_size, MSG_NOSIGNAL)) < 0) {
+            return FALSE;
+        }
+        free(nickname);
+        p = p->next;
+        printf("sendval: %d\n\n", sendval);
+    }
+    if (send(clientArg->socket, "|\n", 2, MSG_NOSIGNAL) < 0) {
+        return FALSE;
+    }
+    return TRUE;
+
+}
+
 
 
 void* clientThread (void* argument) {
@@ -198,14 +227,16 @@ void* clientThread (void* argument) {
     char client_buffer[BUFFER_LENGTH];
 
     int client_action;
-    int signupResult, loginResult;
+    int signupResult, loginResult, sendlistResult;
 
 
     while (1) {
 
         memset(client_buffer, 0, strlen(client_buffer));
-        if (read(thread_socket, client_buffer, 50) <= 0) {
-            printf("Errore di ricezione dal client %d: client disconnesso\n", thread_socket);
+        if (read(thread_socket, client_buffer, BUFFER_LENGTH) <= 0) {
+            pthread_mutex_lock(&list_lock);
+            onClientDisconnection(arg);
+            pthread_mutex_unlock(&list_lock);
             close(thread_socket);
             pthread_exit(NULL);
         }
@@ -219,9 +250,9 @@ void* clientThread (void* argument) {
                 signupResult = saveCredentialsToFile(client_buffer);
                 pthread_mutex_unlock(&signup_lock);
                 if (signupResult == TRUE) {
-                    if (send(thread_socket, "1\n", BOOLSTRINGSIZE, MSG_NOSIGNAL) < 0) {
+                    if (send(thread_socket, "1\n", 2, MSG_NOSIGNAL) < 0) {
                         pthread_mutex_lock(&list_lock);
-                        onClientDisconnection(arg->nickname, thread_socket);
+                        onClientDisconnection(arg);
                         pthread_mutex_unlock(&list_lock);
                         close(thread_socket);
                         pthread_exit(NULL);
@@ -231,9 +262,9 @@ void* clientThread (void* argument) {
                     }
                 }
                 else {
-                    if (send(thread_socket, "0\n", BOOLSTRINGSIZE, MSG_NOSIGNAL) < 0) {
+                    if (send(thread_socket, "0\n", 2, MSG_NOSIGNAL) < 0) {
                         pthread_mutex_lock(&list_lock);
-                        onClientDisconnection(arg->nickname, thread_socket);
+                        onClientDisconnection(arg);
                         pthread_mutex_unlock(&list_lock);
                         close(thread_socket);
                         pthread_exit(NULL);
@@ -243,12 +274,12 @@ void* clientThread (void* argument) {
 
             case LOGIN:
                 pthread_mutex_lock(&login_lock);
-                loginResult = logIn(client_buffer, arg->nickname);
+                loginResult = logIn(client_buffer, arg);
                 pthread_mutex_unlock(&login_lock);
                 if (loginResult == 0) {
-                    if (send(thread_socket, "0\n", BOOLSTRINGSIZE, MSG_NOSIGNAL) < 0) {
+                    if (send(thread_socket, "0\n", 2, MSG_NOSIGNAL) < 0) {
                         pthread_mutex_lock(&list_lock);
-                        onClientDisconnection(arg->nickname, thread_socket);
+                        onClientDisconnection(arg);
                         pthread_mutex_unlock(&list_lock);
                         close(thread_socket);
                         pthread_exit(NULL);
@@ -262,9 +293,9 @@ void* clientThread (void* argument) {
                 }
                 else if (loginResult == 1) {
                     memset(arg->nickname, 0, MAX_CREDENTIALS_LENGTH);
-                    if (send(thread_socket, "1\n", BOOLSTRINGSIZE, MSG_NOSIGNAL) < 0) {
+                    if (send(thread_socket, "1\n", 2, MSG_NOSIGNAL) < 0) {
                         pthread_mutex_lock(&list_lock);
-                        onClientDisconnection(arg->nickname, thread_socket);
+                        onClientDisconnection(arg);
                         pthread_mutex_unlock(&list_lock);
                         close(thread_socket);
                         pthread_exit(NULL);
@@ -272,14 +303,31 @@ void* clientThread (void* argument) {
                 }
                 else {
                     memset(arg->nickname, 0, MAX_CREDENTIALS_LENGTH);
-                    if (send(thread_socket, "2\n", BOOLSTRINGSIZE, MSG_NOSIGNAL) < 0) {
+                    if (send(thread_socket, "2\n", 2, MSG_NOSIGNAL) < 0) {
                         pthread_mutex_lock(&list_lock);
-                        onClientDisconnection(arg->nickname, thread_socket);
+                        onClientDisconnection(arg);
                         pthread_mutex_unlock(&list_lock);
                         close(thread_socket);
                         pthread_exit(NULL);
                     }
                 }
+            break;
+
+            case VIEW_ACTIVE_USERS:
+                pthread_mutex_lock(&list_lock);
+                sendlistResult = sendUsersList(arg);
+                pthread_mutex_unlock(&list_lock);
+                if (sendlistResult == FALSE) {
+                    pthread_mutex_lock(&list_lock);
+                    onClientDisconnection(arg);
+                    pthread_mutex_unlock(&list_lock);
+                    close(thread_socket);
+                    pthread_exit(NULL);
+                }
+            break;
+
+            default:
+                send(thread_socket, "DEFAULT\n", strlen("DEFAULT\n"), MSG_NOSIGNAL);   // da togliere
             break;
 
         }

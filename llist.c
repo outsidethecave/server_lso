@@ -3,13 +3,13 @@
 #include <string.h>
 #include "llist.h"
 
-int areEqual (void* p1, void* p2) {
+int areEqual_str (void* p1, void* p2) {
     char* arg1 = (char*)p1;
     char* arg2 = (char*)p2;
     return strcmp(arg1, arg2) == 0;
 }
 
-void printNode (List* node) {
+void printNode_str (List* node) {
     char* data = (char*)node->data;
     if (node->next) {
         printf("%s -> ", data);
@@ -19,10 +19,16 @@ void printNode (List* node) {
     }
 }
 
+char* toString_str (void* p1) {
+    return ((char*)p1);
+}
+
+
 
 List* newNode (void* data) {
     List* newNode = (List*)malloc(sizeof(List));
     if (newNode) {
+        newNode->data = malloc(sizeof(data));
         memcpy(newNode->data, data, sizeof(data));
         newNode->next = NULL;
     }
@@ -60,9 +66,17 @@ List* delete (List* list, void* data, int (*areEqual)(void*, void*)) {
     return NULL;
 }
 
+int length (List* list) {
+    if (list) {
+        return 1 + length(list->next);
+    }
+    return 0;
+}
+
 void freelist (List* list) {
     if (list) {
         freelist(list->next);
+        free(list->data);
         free(list);
     }
 }
