@@ -20,6 +20,8 @@ char* toString_str (void* p1);
 
 List* newNode (void* data);
 
+List* push (List* list, void* data);
+
 List* append (List* list, void* data);
 
 List* delete (List* list, void* data, int (*areEqual)(void*, void*));

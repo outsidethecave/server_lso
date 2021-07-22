@@ -6,7 +6,8 @@
 int areEqual_str (void* p1, void* p2) {
     char* arg1 = (char*)p1;
     char* arg2 = (char*)p2;
-    return strcmp(arg1, arg2) == 0;
+
+    return (strcmp(arg1, arg2) == 0);
 }
 
 void printNode_str (List* node) {
@@ -28,11 +29,16 @@ char* toString_str (void* p1) {
 List* newNode (void* data) {
     List* newNode = (List*)malloc(sizeof(List));
     if (newNode) {
-        newNode->data = malloc(sizeof(data));
-        memcpy(newNode->data, data, sizeof(data));
+        newNode->data = data;
         newNode->next = NULL;
     }
     return newNode;
+}
+
+List* push (List* list, void* data) {
+    List* tmp = newNode(data);
+    tmp->next = list;
+    return tmp;
 }
 
 List* append (List* list, void* data) {

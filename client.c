@@ -1,3 +1,4 @@
+
 // Client side C/C++ program to demonstrate Socket programming
 #include <stdio.h>
 #include <stdlib.h>
@@ -6,7 +7,8 @@
 #include <unistd.h>
 #include <string.h>
 
-#define PRIVATE_IP "192.168.1.77"
+#define DEFAULT_IP "10.0.2.15"
+#define PRIVATE_IP "192.168.1.75"
 #define PUBLIC_IP "93.44.75.45"
 #define PORT 50000
 
@@ -35,7 +37,7 @@ int main(int argc, char const *argv[]) {
     }
 
     if (connect(client_socket, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0) {
-        perror("Connection Failed ");
+        perror("Connection Failed");
         return -1;
     }
 
