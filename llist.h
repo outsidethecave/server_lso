@@ -24,11 +24,11 @@ List* push (List* list, void* data);
 
 List* append (List* list, void* data);
 
-List* delete (List* list, void* data, int (*areEqual)(void*, void*));
+List* delete (List* list, void* data, int (*areEqual)(void*, void*), void (*freeData)(void*));     // freedata la si passa qualora i dati richiedessero deallocazione
 
 int length (List* list);
 
-void freelist (List* list);
+List* freelist (List* list, void (*freeData)(void*));   // freedata la si passa qualora i dati richiedessero deallocazione
 
 void print (List* list, void (*printNode)(List*));
 

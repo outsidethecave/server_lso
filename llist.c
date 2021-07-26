@@ -51,21 +51,27 @@ List* append (List* list, void* data) {
     return list;
 }
 
-List* delete (List* list, void* data, int (*areEqual)(void*, void*)) {
+List* delete (List* list, void* data, int (*areEqual)(void*, void*), void (*freeData)(void*)) {
     if (list) {
         if (areEqual(list->data, data)) {
             List* tmp = list->next;
+            if (freeData) {
+                freeData(list->data);
+            }
             free(list);
             return tmp;
         }
         else if (list->next && areEqual(list->next->data, data)) {
             List* tmp = list->next;
             list->next = tmp->next;
+            if (freeData) {
+                freeData(tmp->data);
+            }
             free(tmp);
             return list;
         }
         else {
-            list->next = delete(list->next, data, areEqual);
+            list->next = delete(list->next, data, areEqual, freeData);
             return list;
         }
     }
@@ -79,12 +85,21 @@ int length (List* list) {
     return 0;
 }
 
-void freelist (List* list) {
-    if (list) {
-        freelist(list->next);
-        free(list->data);
-        free(list);
+List* freelist (List* list, void (*freeData)(void*)) {
+
+    List* tmp;
+
+    while (list) {
+        tmp = list;
+        list = list->next;
+        if (freeData) {
+            freeData(tmp->data);
+        }
+        free(tmp);
     }
+
+    return NULL;
+
 }
 
 void print (List* list, void (*printNode)(List*)) {

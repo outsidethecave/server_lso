@@ -27,11 +27,22 @@ typedef struct ClientThreadArg {
     pthread_t thread;
 } ClientThreadArg;
 
+void freeData_baseType (void* p) {
+    free(p);
+}
+
 int areEqual_str (void* p1, void* p2) {
     char* arg1 = (char*)p1;
     char* arg2 = (char*)p2;
 
     return (strcmp(arg1, arg2) == 0);
+}
+
+int areEqual_int (void* p1, void* p2) {
+    int arg1 = *((int*)p1);
+    int arg2 = *((int*)p2);
+
+    return arg1 == arg2;
 }
 
 void printNode_str (List* node) {
@@ -45,6 +56,9 @@ void printNode_str (List* node) {
 }
 
 void printNode_int (List* node) {
+
+    if (!node) return;
+
     int data = *((int*)(node->data));
     if (node->next) {
         printf("%d -> ", data);
@@ -52,6 +66,7 @@ void printNode_int (List* node) {
     else {
         printf("%d -> NULL\n", data);
     }
+
 }
 
 char* toString_str (void* p1) {
@@ -110,15 +125,26 @@ int length (List* list) {
     if (list) {
         return 1 + length(list->next);
     }
-    return 0;
+    else {
+        return 0;
+    }
 }
 
-void freelist (List* list) {
-    if (list) {
-        freelist(list->next);
-        free(list->data);
-        free(list);
+List* freelist (List* list, void (*freeData)(void*)) {
+
+    List* tmp;
+
+    while (list) {
+        tmp = list;
+        list = list->next;
+        if (freeData) {
+            freeData(tmp->data);
+        }
+        free(tmp);
     }
+
+    return NULL;
+
 }
 
 void print (List* list, void (*printNode)(List*)) {
@@ -148,8 +174,10 @@ void popola (char array[]) {
 
 int main() {
 
-    char str[] = "mi chiamo giangiorgio";
-    strcat(str, "ne");
-    printf("%s\n", str);
+    void* ptr = malloc(10);
+    free(ptr);
+    ptr = NULL;
+    free(ptr);
+    printf("No crash\n");
 
 }
