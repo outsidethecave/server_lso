@@ -42,31 +42,29 @@
 
 #define GAME_ACTION 6
 
-#define LEAVE_MATCH 8
+#define LEAVE_MATCH 7
 #define MATCH_LEFT "0\n"
 
-#define LOGOUT 7
+#define LOGOUT 8
 
-#define NUMBER_OF_PLAYERS 2
+#define NUMBER_OF_PLAYERS 3
 #define GRIDSIZE 7
 #define WIN 10
 
 typedef char Symbol[SYMBOL_SIZE];
 
-typedef struct ClientThreadArg {
+typedef struct Client {
     int clientSerial;
     char nickname[MAX_CREDENTIALS_LENGTH];
     int socket;
     int pipe[2];
+    int activeGame;
+    int positionInArrayOfPlayers;
     pthread_t thread;
-} ClientThreadArg;
+} Client;
 
 typedef struct Player {
-    int playerClientSerial;
-    char nickname[MAX_CREDENTIALS_LENGTH];
-    int socket;
-    int pipe[2];
-    pthread_t thread;
+    Client* client;
     Symbol symbol;
     int territories;
     int x;
@@ -74,22 +72,23 @@ typedef struct Player {
     int isActive;
 } Player;
 
-typedef struct GameThreadArg {
+typedef struct Game {
     int gameSerial;
     Symbol** grid;
     Player* players[NUMBER_OF_PLAYERS];
-    int currPlayers;
-} GameThreadArg;
+
+    Player* activePlayer;
+} Game;
 
 int areEqual_cli (void* p1, void* p2) {
-    ClientThreadArg* arg1 = (ClientThreadArg*)p1;
-    ClientThreadArg* arg2 = (ClientThreadArg*)p2;
+    Client* arg1 = (Client*)p1;
+    Client* arg2 = (Client*)p2;
 
     return strcmp(arg1->nickname, arg2->nickname) == 0;
 }
 
 void printNode_cli (List* node) {
-    ClientThreadArg* data = (ClientThreadArg*)(node->data);
+    Client* data = (Client*)(node->data);
     if (node->next) {
         printf("(%s, %d, %lu) -> ", data->nickname, data->socket, data->thread);
     }
@@ -99,17 +98,19 @@ void printNode_cli (List* node) {
 }
 
 
-int matchnum = 0;
 int users_fd;
+int gamenum = 0;
 List* activeUsersList = NULL;
-List* usersLookingForMatch = NULL;
-GameThreadArg[40] gameArgs;
-pthread_t matchThread_id[40]
+List* clientsLookingForMatch = NULL;
+Game* gameArgs[40];
+pthread_t gameThreads[40];
+pthread_mutex_t playerLocks[40];
+pthread_mutex_t gamenum_lock = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t signup_lock = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t login_lock = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t activeUsers_lock = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t lookingForMatch_lock = PTHREAD_MUTEX_INITIALIZER;
-pthread_mutex_t match_lock = PTHREAD_MUTEX_INITIALIZER;
+
 
 int userExists (char nickname[]) {
 
@@ -181,7 +182,7 @@ int saveCredentialsToFile (char credentials_buffer[]) {
     return TRUE;
 
 }
-int logIn (char credentials_buffer[MAX_CREDENTIALS_LENGTH], ClientThreadArg* clientArg) {
+int logIn (char credentials_buffer[MAX_CREDENTIALS_LENGTH], Client* clientArg) {
 
     char read_char[1];
     char nickname[MAX_CREDENTIALS_LENGTH];
@@ -255,7 +256,9 @@ int logIn (char credentials_buffer[MAX_CREDENTIALS_LENGTH], ClientThreadArg* cli
     return 1;    // USER NOT FOUND (DOESN'T EXIST)
 
 }
-void onClientDisconnection (ClientThreadArg* clientArg) {
+void onClientDisconnection (Client* clientArg) {
+
+    // QUI BISOGNA FARE ANCHE LE DOVUTE OPERAZIONI DI ELIMINAZIONE DALLA PARTITA
 
     printf("Errore di ricezione dal client %d: client disconnesso\n", clientArg->socket);
 
@@ -263,7 +266,7 @@ void onClientDisconnection (ClientThreadArg* clientArg) {
     activeUsersList = delete(activeUsersList, clientArg->nickname, areEqual_str, NULL);
     pthread_mutex_unlock(&activeUsers_lock);
     pthread_mutex_lock(&lookingForMatch_lock);
-    usersLookingForMatch = delete(usersLookingForMatch, clientArg, areEqual_str, NULL);
+    clientsLookingForMatch = delete(clientsLookingForMatch, clientArg, areEqual_str, NULL);
     pthread_mutex_unlock(&lookingForMatch_lock);
 
     memset(clientArg->nickname, 0, MAX_CREDENTIALS_LENGTH);
@@ -271,7 +274,7 @@ void onClientDisconnection (ClientThreadArg* clientArg) {
     free(clientArg);
 
 }
-int sendUsersList (ClientThreadArg* clientArg) {
+int sendUsersList (Client* clientArg) {
 
     List* p = activeUsersList;
     int nick_size;
@@ -324,11 +327,13 @@ void freeGrid (Symbol** grid) {
 }
 
 
+// A OGNI DISCONNESSIONE BISOGNA SETTARE LA POSIZIONE DELL'ARRAY A NULL
 void* gameThread (void* argument) {
 
-    printf("game thread started\n\n");
+    Game* this = (Game*) argument;
 
-    GameThreadArg* arg = (GameThreadArg*) argument;
+    printf("Game started. Serial: %d\n\n", this->gameSerial);
+
     int valread, valsend;
     char ack[2] = "";
     char client_buffer[20] = "";
@@ -338,86 +343,115 @@ void* gameThread (void* argument) {
     char server_msg[20] = "";
     int new_x, new_y;
     char x_str[3], y_str[3], new_x_str[3], new_y_str[3];
-    int active_player = 0, defending_player, atk, def;
+    int activePlayer_index = -1, defending_player, atk, def;
     char atk_str[2] = "", def_str[2] = "";
-    char active_player_str[3] = "", defending_player_str[3] = "";
-    Player* players[NUMBER_OF_PLAYERS];
+    char activePlayer_index_str[3] = "", defending_player_str[3] = "";
+    int loopedOnce = FALSE;
     int i;
-
-    memcpy(players, arg->players, sizeof(players));
 
     while (!winIsReached) {
 
-        if (active_player == NUMBER_OF_PLAYERS) {
-            active_player = 0;
+        pthread_mutex_lock(&playerLocks[this->gameSerial]);
+        activePlayer_index++;
+        if (activePlayer_index == NUMBER_OF_PLAYERS) {
+            activePlayer_index = 0;
         }
+        while (this->players[activePlayer_index] == NULL) {
+            activePlayer_index++;
+            if (activePlayer_index == NUMBER_OF_PLAYERS) {
+                if (loopedOnce) {
+                    printf("Hanno appeso tutti\n");
+                    pthread_exit(NULL);
+                }
+                else {
+                    activePlayer_index = 0;
+                    loopedOnce = TRUE;
+                }
+            }
+        }
+        loopedOnce = FALSE;
+        this->activePlayer = this->players[activePlayer_index];
+        pthread_mutex_unlock(&playerLocks[this->gameSerial]);
 
-        sprintf(active_player_str, "%d", active_player);
+        sprintf(activePlayer_index_str, "%d", activePlayer_index);
 
         strcat(server_msg, "1");                  // 1 per segnalare al client che sta venendo inviato il giocatore attivo
-        strcat(server_msg, active_player_str);
+        strcat(server_msg, activePlayer_index_str);
         strcat(server_msg, "\n");
 
         // INVIO DEL GIOCATORE ATTIVO
         for (i = 0; i < NUMBER_OF_PLAYERS; i++) {
-            if (players[i]) {
-                if ((valsend = send(players[i]->socket, server_msg, strlen(server_msg), MSG_NOSIGNAL)) < 0) {
-                    printf("CRASH client %d\n", players[i]->socket);
-                    free(players[i]);
-                    players[i] = NULL;
-                } printf("6 Giocatore attivo inviato al client %d\n", players[i]->socket);
+            if (this->players[i]) {
+                if ((valsend = send(this->players[i]->client->socket, server_msg, strlen(server_msg), MSG_NOSIGNAL)) < 0) {
+                    printf("CRASH client %d\n", this->players[i]->client->socket);
+                    free(this->players[i]);
+                    this->players[i] = NULL;
+                } printf("6 Giocatore attivo inviato al client %d\n", this->players[i]->client->socket);
                 memset(ack, 0, 2);
             }
         }
         memset(server_msg, 0, sizeof(server_msg));
 
-        printf("Il giocatore attivo %s e' in posizione (%d, %d)\n", players[active_player]->nickname, players[active_player]->x, players[active_player]->y);
+        printf("Il giocatore attivo %s e' in posizione (%d, %d)\n", this->players[activePlayer_index]->client->nickname, this->players[activePlayer_index]->x, this->players[activePlayer_index]->y);
 
         memset(move, 0, strlen(move));
+        memset(client_buffer, 0, 20);
         // LETTURA DELLA MOSSA
-        if (read(players[active_player]->pipe[0], client_buffer, sizeof(client_buffer)) <= 0) {
-            printf("Errore di pipe dal client %d\n", players[active_player]->socket);
+        if (read(this->players[activePlayer_index]->client->pipe[0], client_buffer, sizeof(client_buffer)) <= 0) {
+            printf("Errore di pipe dal client %d\n", this->players[activePlayer_index]->client->socket);
             pthread_exit(NULL);
         } printf("Mossa letta: %c\n", client_buffer[1]);
+
+        if (client_buffer[0] == 'X') {
+            this->players[activePlayer_index]->client->activeGame = -1;
+            this->players[activePlayer_index]->client->positionInArrayOfPlayers = -1;
+            this->players[activePlayer_index] = NULL;
+            continue;
+        }
 
         move[0] = client_buffer[1];
 
         switch (move[0]) {
 
             case 'N':
-                new_x = players[active_player]->x;
-                new_y = players[active_player]->y - 1;
+                new_x = this->players[activePlayer_index]->x;
+                new_y = this->players[activePlayer_index]->y - 1;
             break;
 
             case 'S':
-                new_x = players[active_player]->x;
-                new_y = players[active_player]->y + 1;
+                new_x = this->players[activePlayer_index]->x;
+                new_y = this->players[activePlayer_index]->y + 1;
             break;
 
             case 'O':
-                new_x = players[active_player]->x - 1;
-                new_y = players[active_player]->y;
+                new_x = this->players[activePlayer_index]->x - 1;
+                new_y = this->players[activePlayer_index]->y;
             break;
 
             case 'E':
-                new_x = players[active_player]->x + 1;
-                new_y = players[active_player]->y;
+                new_x = this->players[activePlayer_index]->x + 1;
+                new_y = this->players[activePlayer_index]->y;
             break;
 
             default:
-                printf("Mossa non valida, errore di ricezione dal client %d\n", players[active_player]->socket);
+                printf("Mossa non valida, errore di ricezione dal client %d\n", this->players[activePlayer_index]->client->socket);
                 pthread_exit(NULL);
             break;
 
         }
 
-        printf("%s vuole spostarsi in posizione (%d, %d)\n", players[active_player]->nickname, new_x, new_y);
+        printf("%s vuole spostarsi in posizione (%d, %d)\n", this->players[activePlayer_index]->client->nickname, new_x, new_y);
 
         // CASELLA OCCUPATA
-        if (strcmp(arg->grid[new_x][new_y], "0") != 0 && strcmp(arg->grid[new_x][new_y], players[active_player]->symbol) != 0) {
-            defending_player = atoi(arg->grid[new_x][new_y]) - 1;
+        if (strcmp(this->grid[new_x][new_y], "0") != 0 && strcmp(this->grid[new_x][new_y], this->players[activePlayer_index]->symbol) != 0) {
+            defending_player = atoi(this->grid[new_x][new_y]) - 1;
             sprintf(defending_player_str, "%d", defending_player);
-            printf("La posizione (%d, %d) è occupata dal giocatore %s\n", new_x, new_y, players[defending_player]->nickname);
+            if (this->players[defending_player]) {
+                printf("La posizione (%d, %d) è occupata dal giocatore %s\n", new_x, new_y, this->players[defending_player]->client->nickname);
+            }
+            else {
+                printf("La posizione (%d, %d) è occupata da un disertore\n", new_x, new_y);
+            }
             atk = rand()%6 + 1;
             def = rand()%6 + 1;
             sprintf(atk_str, "%d", atk);
@@ -425,36 +459,48 @@ void* gameThread (void* argument) {
             printf("ATK: %d DEF: %d\n", atk, def);
             // VITTORIA ATTACCO
             if (atk > def) {
-                strcpy(arg->grid[new_x][new_y], players[active_player]->symbol);
-                players[active_player]->territories++;
-                players[defending_player]->territories--;
-                players[active_player]->x = new_x;
-                players[active_player]->y = new_y;
+                strcpy(this->grid[new_x][new_y], this->players[activePlayer_index]->symbol);
+                this->players[activePlayer_index]->territories++;
+                if (this->players[defending_player]) {
+                    this->players[defending_player]->territories--;
+                }
+                this->players[activePlayer_index]->x = new_x;
+                this->players[activePlayer_index]->y = new_y;
                 sprintf(outcome, "%d", 2);
-                printf("Vince l'attacco: %s si sposta in posizione (%d, %d). %s possiede ora %d territori e il giocatore %s ne possiede %d\n\n", players[active_player]->nickname, players[active_player]->x, players[active_player]->y, players[active_player]->nickname, players[active_player]->territories, players[defending_player]->nickname, players[defending_player]->territories);
+                if (this->players[defending_player]) {
+                    printf("Vince l'attacco: %s si sposta in posizione (%d, %d). %s possiede ora %d territori e il giocatore %s ne possiede %d\n\n", this->players[activePlayer_index]->client->nickname, this->players[activePlayer_index]->x, this->players[activePlayer_index]->y, this->players[activePlayer_index]->client->nickname, this->players[activePlayer_index]->territories, this->players[defending_player]->client->nickname, this->players[defending_player]->territories);
+                }
+                else {
+                    printf("Vince l'attacco: %s si sposta in posizione (%d, %d). %s possiede ora %d territori.\n\n", this->players[activePlayer_index]->client->nickname, this->players[activePlayer_index]->x, this->players[activePlayer_index]->y, this->players[activePlayer_index]->client->nickname, this->players[activePlayer_index]->territories);
+                }
             }
             // VITTORIA DIFESA
             else {
                 sprintf(outcome, "%d", 3);
-                printf("Vince la difesa del giocatore %s, spostamento non effettuato\n\n", players[defending_player]->nickname);
+                if (this->players[defending_player]) {
+                    printf("Vince la difesa del giocatore %s, spostamento non effettuato\n\n", this->players[defending_player]->client->nickname);
+                }
+                else {
+                    printf("Vince la difesa del disertore, spostamento non effettuato\n\n");
+                }
             }
         }
         else {
             // SPOSTAMENTO IN CELLA GIA' POSSEDUTA
-            if (strcmp(arg->grid[new_x][new_y], players[active_player]->symbol) == 0) {
+            if (strcmp(this->grid[new_x][new_y], this->players[activePlayer_index]->symbol) == 0) {
                 sprintf(outcome, "%d", 4);
-                players[active_player]->x = new_x;
-                players[active_player]->y = new_y;
+                this->players[activePlayer_index]->x = new_x;
+                this->players[activePlayer_index]->y = new_y;
                 printf("Posizione gia' posseduta: spostamento effettuato.\n");
             }
             // SPOSTAMENTO IN CELLA LIBERA
             else {
                 sprintf(outcome, "%d", 5);
-                strcpy(arg->grid[new_x][new_y], players[active_player]->symbol);
-                players[active_player]->territories++;
-                players[active_player]->x = new_x;
-                players[active_player]->y = new_y;
-                printf("Posizione libera: spostamento effettuato. %s ora possiede %d territori\n\n", players[active_player]->nickname, players[active_player]->territories);
+                strcpy(this->grid[new_x][new_y], this->players[activePlayer_index]->symbol);
+                this->players[activePlayer_index]->territories++;
+                this->players[activePlayer_index]->x = new_x;
+                this->players[activePlayer_index]->y = new_y;
+                printf("Posizione libera: spostamento effettuato. %s ora possiede %d territori\n\n", this->players[activePlayer_index]->client->nickname, this->players[activePlayer_index]->territories);
             }
         }
 
@@ -469,59 +515,57 @@ void* gameThread (void* argument) {
 
         // INVIO ESITO MOSSA
         for (i = 0; i < NUMBER_OF_PLAYERS; i++) {
-            if ((valsend = send(players[i]->socket, server_msg, strlen(server_msg), MSG_NOSIGNAL)) < 0) {
-                printf("Errore di ricezione dal client %d durante l'invio esito\n", players[i]->socket);
-                pthread_exit(NULL);
-            } printf("7 Esito mossa (%s) inviato al client %d\n", server_msg, players[i]->socket);
-            //ACK RIMOSSO
-            memset(ack, 0, 2);
+            if (this->players[i]) {
+                if ((valsend = send(this->players[i]->client->socket, server_msg, strlen(server_msg), MSG_NOSIGNAL)) < 0) {
+                    printf("Errore di ricezione dal client %d durante l'invio esito\n", this->players[i]->client->socket);
+                    pthread_exit(NULL);
+                } printf("7 Esito mossa (%s) inviato al client %d\n", server_msg, this->players[i]->client->socket);
+            }
         }
         memset(server_msg, 0, sizeof(server_msg));
 
-        if (players[active_player]->territories == WIN) {
-            printf("%s vince la partita\n\n", players[active_player]->nickname);
+        printf("Qui ci arriva 1\n");
+        if (this->players[activePlayer_index]->territories == WIN) {
+            printf("%s vince la partita\n\n", this->players[activePlayer_index]->client->nickname);
             winIsReached = TRUE;
         }
-
-        active_player++;
+        printf("Qui ci arriva 2\n");
 
     }
 
-    free(arg);
-    freeGrid(arg->grid);
+    freeGrid(this->grid);
     for (i = 0; i < NUMBER_OF_PLAYERS; i++) {
-        free(players[i]);
+        free(this->players[i]);
     }
+    free(this);
 
 }
 
 
-void start_match (GameThreadArg* arg) {
+void start_match () {
+
+    Game* game = gameArgs[gamenum];
 
     printf("start_match invoked\n");
-    static int matchnum = 0;
-    arg->currPlayers = NUMBER_OF_PLAYERS;
 
-    ClientThreadArg* player_data;
+    Client* client;
     Player* player = NULL;
 
     pthread_mutex_lock(&lookingForMatch_lock);
-    List* p = usersLookingForMatch;
+    List* p = clientsLookingForMatch;
 
     int i = 0;
-    for (p = usersLookingForMatch; p; p = p->next) {
-        player_data = p->data;
+    for (p = clientsLookingForMatch; p; p = p->next) {
+        client = p->data;
+        client->activeGame = gamenum;
+        client->positionInArrayOfPlayers = i;
         player = (Player*)malloc(sizeof(Player));
-        strcpy(player->nickname, player_data->nickname);
-        player->socket = player_data->socket;
-        memcpy(player->pipe, player_data->pipe, sizeof(player->pipe));
-        player->thread = player_data->thread;
-        player->playerClientSerial = player_data->clientSerial;
-        arg->players[i] = player;
+        player->client = client;
+        game->players[i] = player;
         i++;
     }
 
-    usersLookingForMatch = freelist(usersLookingForMatch, NULL);
+    clientsLookingForMatch = freelist(clientsLookingForMatch, NULL);
     pthread_mutex_unlock(&lookingForMatch_lock);
 
     Symbol** grid = makeGrid();
@@ -531,89 +575,85 @@ void start_match (GameThreadArg* arg) {
     int x, y;
     int new_x, new_y;
     char x_str[3], y_str[3], new_x_str[3], new_y_str[3];
-    int active_player = 0, defending_player, atk, def;
+    int activePlayer_index = 0, defending_player, atk, def;
     char atk_str[2] = "", def_str[2] = "";
-    char active_player_str[3] = "", defending_player_str[3] = "";
+    char activePlayer_index_str[3] = "", defending_player_str[3] = "";
     char ack[2] = "";
     char move[2] = "";
     char outcome[2] = "";
-    char player_data_str[50] = "";
+    char player_data[50] = "";
 
 
     int j;
     // INVIO MESSAGGIO DI INIZIO PARTITA
     for (i = 0; i < NUMBER_OF_PLAYERS; i++) {
-        if ((valsend = send(arg->players[i]->socket, START_MATCH, 2, MSG_NOSIGNAL)) < 0) {
-            printf("1 Errore di ricezione dal client %d\n", arg->players[i]->socket);
+        if ((valsend = send(game->players[i]->client->socket, START_MATCH, 2, MSG_NOSIGNAL)) < 0) {
+            printf("Errore di ricezione dal client %d\n", game->players[i]->client->socket);
             pthread_exit(NULL);
-        } printf("3 Messaggio di partita iniziata inviato al client %d\n", arg->players[i]->socket);
+        } printf("Messaggio di partita iniziata inviato al client %d\n", game->players[i]->client->socket);
 
         memset(ack, 0, 2);
     }
 
 
     // POPOLAMENTO DELL'ARRAY DI GIOCATORI E INVIO DEI LORO DATI
-    arg->grid = grid;
+    game->grid = grid;
     for (i = 0; i < NUMBER_OF_PLAYERS; i++) {
-        strcat(player_data_str, arg->players[i]->nickname);
-        strcat(player_data_str, "|");
-        snprintf(arg->players[i]->symbol, SYMBOL_SIZE, "%d", i+1);
-        strcat(player_data_str, arg->players[i]->symbol);
-        strcat(player_data_str, "|");
-        arg->players[i]->territories = 1;
-        arg->players[i]->isActive = FALSE;
+        strcat(player_data, game->players[i]->client->nickname);
+        strcat(player_data, "|");
+        snprintf(game->players[i]->symbol, SYMBOL_SIZE, "%d", i+1);
+        strcat(player_data, game->players[i]->symbol);
+        strcat(player_data, "|");
+        game->players[i]->territories = 1;
+        game->players[i]->isActive = FALSE;
         do {
             x = rand()%GRIDSIZE;
             y = rand()%GRIDSIZE;
         } while (!(strcmp(grid[x][y], "0") == 0));
-        arg->players[i]->x = x;
-        arg->players[i]->y = y;
+        game->players[i]->x = x;
+        game->players[i]->y = y;
         sprintf(x_str, "%d", x);
         sprintf(y_str, "%d", y);
-        strcat(player_data_str, x_str);
-        strcat(player_data_str, "|");
-        strcat(player_data_str, y_str);
-        strcat(player_data_str, "\n");
-        strcpy(grid[x][y], arg->players[i]->symbol);
+        strcat(player_data, x_str);
+        strcat(player_data, "|");
+        strcat(player_data, y_str);
+        strcat(player_data, "\n");
+        strcpy(grid[x][y], game->players[i]->symbol);
         for (j = 0; j < NUMBER_OF_PLAYERS; j++) {
-            if ((valsend = send(arg->players[j]->socket, player_data_str, strlen(player_data_str), MSG_NOSIGNAL)) < 0) {
-                printf("Errore di ricezione dal client %d\n", arg->players[j]->socket);
+            if ((valsend = send(game->players[j]->client->socket, player_data, strlen(player_data), MSG_NOSIGNAL)) < 0) {
+                printf("Errore di ricezione dal client %d\n", game->players[j]->client->socket);
                 pthread_exit(NULL);
-            } printf("4 Dati del giocatore %d inviati al client %d\n", i, arg->players[j]->socket);
+            } printf("Dati del giocatore %d inviati al client %d\n", i, game->players[j]->client->socket);
             memset(ack, 0, 2);
         }
-        memset(player_data_str, 0, 50);
+        memset(player_data, 0, 50);
     }
 
     // INVIO TERMINAZIONE DEI DATI DEI GIOCATORI
     for (i = 0; i < NUMBER_OF_PLAYERS; i++) {
-        if ((valsend = send(arg->players[i]->socket, "|\n", 2, MSG_NOSIGNAL)) < 0) {
-            printf("Errore di ricezione dal client %d\n", arg->players[i]->socket);
+        if ((valsend = send(game->players[i]->client->socket, "|\n", 2, MSG_NOSIGNAL)) < 0) {
+            printf("Errore di ricezione dal client %d\n", game->players[i]->client->socket);
             pthread_exit(NULL);
-        } printf("5 Terminatore dell'invio dei dati dei giocatori inviati al client %d\n", arg->players[i]->socket);
+        } printf("Terminatore dell'invio dei dati dei giocatori inviati al client %d\n", game->players[i]->client->socket);
         memset(ack, 0, 2);
     }
 
-    pthread_create(&(matchThread_id[matchnum++]), NULL, &gameThread, arg);   // Bisogna creare un mutex e usarlo qui per matchThread_id
+    pthread_create(&(gameThreads[gamenum++]), NULL, &gameThread, game);
 
 }
 
 
 void* clientThread (void* argument) {
 
-    ClientThreadArg* arg = (ClientThreadArg*)argument;
-    GameThreadArg* gameArg = (GameThreadArg*)malloc(sizeof(GameThreadArg));
-    arg->thread = pthread_self();
+    Client* this = (Client*)argument;
+    this->thread = pthread_self();
 
     int p[2];
-    memcpy(arg->pipe, p, sizeof(arg->pipe));
-    if (pipe(arg->pipe) < 0) {
+    memcpy(this->pipe, p, sizeof(this->pipe));
+    if (pipe(this->pipe) < 0) {
         perror("Errore di pipe");
         exit(EXIT_FAILURE);
     };
-    //snprintf(arg->nickname, MAX_CREDENTIALS_LENGTH, "%d", arg->socket);     // Il nickname di default è la socket
-
-    int thread_socket = arg->socket;
 
     char client_buffer[BUFFER_LENGTH];
 
@@ -621,17 +661,17 @@ void* clientThread (void* argument) {
     int signupResult, loginResult, sendlistResult;
 
     char ack[2] = "";
-
+    int mutex_index;
 
     while (1) {
 
         memset(client_buffer, 0, strlen(client_buffer));
-        if (read(thread_socket, client_buffer, BUFFER_LENGTH) <= 0) {
-            onClientDisconnection(arg);
-            close(thread_socket);
+        if (read(this->socket, client_buffer, BUFFER_LENGTH) <= 0) {
+            onClientDisconnection(this);
+            close(this->socket);
             pthread_exit(NULL);
         }
-        printf("MESSAGGIO RICEVUTO DAL CLIENT %d: %s\n", thread_socket, client_buffer);
+        printf("MESSAGGIO RICEVUTO DAL CLIENT %d: %s\n", this->socket, client_buffer);
 
         client_action = client_buffer[0] - '0';   // Converte char a cifra singola nel rispettivo int
 
@@ -643,19 +683,19 @@ void* clientThread (void* argument) {
                 signupResult = saveCredentialsToFile(client_buffer);
                 pthread_mutex_unlock(&signup_lock);
                 if (signupResult == TRUE) {
-                    if (send(thread_socket, SIGNUP_SUCCESS, 2, MSG_NOSIGNAL) < 0) {
-                        onClientDisconnection(arg);
-                        close(thread_socket);
+                    if (send(this->socket, SIGNUP_SUCCESS, 2, MSG_NOSIGNAL) < 0) {
+                        onClientDisconnection(this);
+                        close(this->socket);
                         pthread_exit(NULL);
                     }
                     else {
-                        printf("Il client %d registra un utente\n\n", thread_socket);
+                        printf("Il client %d registra un utente\n\n", this->socket);
                     }
                 }
                 else {
-                    if (send(thread_socket, USER_ALREADY_EXISTS, 2, MSG_NOSIGNAL) < 0) {
-                        onClientDisconnection(arg);
-                        close(thread_socket);
+                    if (send(this->socket, USER_ALREADY_EXISTS, 2, MSG_NOSIGNAL) < 0) {
+                        onClientDisconnection(this);
+                        close(this->socket);
                         pthread_exit(NULL);
                     }
                 }
@@ -664,35 +704,35 @@ void* clientThread (void* argument) {
             case LOGIN:
                 strcat(client_buffer, "\n");;
                 pthread_mutex_lock(&login_lock);
-                loginResult = logIn(client_buffer, arg);
+                loginResult = logIn(client_buffer, this);
                 printf("LOGIN RESULT: %d\n", loginResult);
                 pthread_mutex_unlock(&login_lock);
                 if (loginResult == 0) {
-                    if (send(thread_socket, LOGIN_SUCCESS, 2, MSG_NOSIGNAL) < 0) {
-                        onClientDisconnection(arg);
-                        close(thread_socket);
+                    if (send(this->socket, LOGIN_SUCCESS, 2, MSG_NOSIGNAL) < 0) {
+                        onClientDisconnection(this);
+                        close(this->socket);
                         pthread_exit(NULL);
                     }
                     else {
                         pthread_mutex_lock(&activeUsers_lock);
-                        activeUsersList = push(activeUsersList, arg->nickname);
+                        activeUsersList = push(activeUsersList, this->nickname);
                         pthread_mutex_unlock(&activeUsers_lock);
-                        printf("%s si connette sul client %d\n\n", arg->nickname, thread_socket);
+                        printf("%s si connette sul client %d\n\n", this->nickname, this->socket);
                     }
                 }
                 else if (loginResult == 1) {
-                    memset(arg->nickname, 0, MAX_CREDENTIALS_LENGTH);
-                    if (send(thread_socket, USER_DOESNT_EXIST, 2, MSG_NOSIGNAL) < 0) {
-                        onClientDisconnection(arg);
-                        close(thread_socket);
+                    memset(this->nickname, 0, MAX_CREDENTIALS_LENGTH);
+                    if (send(this->socket, USER_DOESNT_EXIST, 2, MSG_NOSIGNAL) < 0) {
+                        onClientDisconnection(this);
+                        close(this->socket);
                         pthread_exit(NULL);
                     }
                 }
                 else {
-                    memset(arg->nickname, 0, MAX_CREDENTIALS_LENGTH);
-                    if (send(thread_socket, WRONG_PASSWORD, 2, MSG_NOSIGNAL) < 0) {
-                        onClientDisconnection(arg);
-                        close(thread_socket);
+                    memset(this->nickname, 0, MAX_CREDENTIALS_LENGTH);
+                    if (send(this->socket, WRONG_PASSWORD, 2, MSG_NOSIGNAL) < 0) {
+                        onClientDisconnection(this);
+                        close(this->socket);
                         pthread_exit(NULL);
                     }
                 }
@@ -700,59 +740,77 @@ void* clientThread (void* argument) {
 
             case VIEW_ACTIVE_USERS:
                 pthread_mutex_lock(&activeUsers_lock);
-                sendlistResult = sendUsersList(arg);
+                sendlistResult = sendUsersList(this);
                 pthread_mutex_unlock(&activeUsers_lock);
                 if (sendlistResult == FALSE) {
-                    onClientDisconnection(arg);
-                    close(thread_socket);
+                    onClientDisconnection(this);
+                    close(this->socket);
                     pthread_exit(NULL);
                 }
             break;
 
             case LOOK_FOR_MATCH:
                 pthread_mutex_lock(&lookingForMatch_lock);
-                usersLookingForMatch = append(usersLookingForMatch, arg);
-                printf("CLIENT %d (%s) MESSO IN CODA\n", thread_socket, arg->nickname);
+                clientsLookingForMatch = append(clientsLookingForMatch, this);
+                printf("CLIENT %d (%s) MESSO IN CODA\n", this->socket, this->nickname);
                 pthread_mutex_unlock(&lookingForMatch_lock);
-                if (length(usersLookingForMatch) == NUMBER_OF_PLAYERS) {
-                    start_match(gameArg);
+                if (length(clientsLookingForMatch) == NUMBER_OF_PLAYERS) {
+                    pthread_mutex_lock(&gamenum_lock);
+                    gameArgs[gamenum] = (Game*)malloc(sizeof(Game));
+                    gameArgs[gamenum]->gameSerial = gamenum;
+                    start_match();
+                    pthread_mutex_unlock(&gamenum_lock);
                 }
             break;
 
             case STOP_LOOKING_FOR_MATCH:
                 pthread_mutex_lock(&lookingForMatch_lock);
-                usersLookingForMatch = delete(usersLookingForMatch, arg, areEqual_str, NULL);
-                printf("CLIENT %d (%s) RIMOSSO DALLA CODA\n", thread_socket, arg->nickname);
+                clientsLookingForMatch = delete(clientsLookingForMatch, this, areEqual_str, NULL);
+                printf("CLIENT %d (%s) RIMOSSO DALLA CODA\n", this->socket, this->nickname);
                 pthread_mutex_unlock(&lookingForMatch_lock);
-                if (send(thread_socket, LEAVE_QUEUE, 2, MSG_NOSIGNAL) < 0) {
-                    onClientDisconnection(arg);
-                    close(thread_socket);
+                if (send(this->socket, LEAVE_QUEUE, 2, MSG_NOSIGNAL) < 0) {
+                    onClientDisconnection(this);
+                    close(this->socket);
                     pthread_exit(NULL);
                 }
 
             break;
 
             case GAME_ACTION:
-                write(arg->pipe[1], client_buffer, strlen(client_buffer) + 1);
+                write(this->pipe[1], client_buffer, strlen(client_buffer) + 1);
             break;
 
             case LEAVE_MATCH:
-                if (send(thread_socket, LEAVE_MATCH, 2, MSG_NOSIGNAL) < 0) {
-                    onClientDisconnection(arg);
-                    close(thread_socket);
+                printf("%s vuole abbandonare la partita %d\n", this->nickname, this->activeGame);
+                if (send(this->socket, MATCH_LEFT, 2, MSG_NOSIGNAL) < 0) {
+                    onClientDisconnection(this);
+                    close(this->socket);
                 }
+                mutex_index = this->activeGame;
+                pthread_mutex_lock(&playerLocks[mutex_index]);
+                if (gameArgs[this->activeGame]->activePlayer->client == this) {
+                    printf("%s era il giocatore attivo: invio del messaggio X\n", this->nickname);
+                    write(this->pipe[1], "X", 2);
+                }
+                else {
+                    gameArgs[this->activeGame]->players[this->positionInArrayOfPlayers] = NULL;
+                    printf("Esso non era il giocatore attivo, viene messo a %p\n", gameArgs[this->activeGame]->players[this->positionInArrayOfPlayers]);
+                    this->activeGame = -1;
+                    this->positionInArrayOfPlayers = -1;
+                }
+                pthread_mutex_unlock(&playerLocks[mutex_index]);
             break;
 
             case LOGOUT:
-                printf("%s effettua il logout dal client %d\n", arg->nickname, arg->socket);
+                printf("%s effettua il logout dal client %d\n\n", this->nickname, this->socket);
                 pthread_mutex_lock(&activeUsers_lock);
-                activeUsersList = delete(activeUsersList, arg->nickname, areEqual_str, NULL);
+                activeUsersList = delete(activeUsersList, this->nickname, areEqual_str, NULL);
                 pthread_mutex_unlock(&activeUsers_lock);
-                memset(arg->nickname, 0, MAX_CREDENTIALS_LENGTH);
+                memset(this->nickname, 0, MAX_CREDENTIALS_LENGTH);
             break;
 
             default:
-                printf("DEFAULT\n");//send(thread_socket, "DEFAULT\n", strlen("DEFAULT\n"), MSG_NOSIGNAL);   // da togliere
+                printf("DEFAULT\n");//send(this->socket, "DEFAULT\n", strlen("DEFAULT\n"), MSG_NOSIGNAL);   // da togliere
             break;
 
         }
@@ -769,7 +827,7 @@ int main (int argc, char* argv[]) {
 
     srand(time(NULL));
 
-    pthread_t clientThread_id[40];
+    pthread_t clientThreads[40];
     int clientnum = 0;
 
     struct sockaddr_in address;
@@ -778,7 +836,14 @@ int main (int argc, char* argv[]) {
 
     int listener_socket_fd = 0, new_socket = 0;
 
-    ClientThreadArg* arg;
+    Client* arg;
+
+
+
+    int i;
+    for (i = 0; i < 40; i++) {
+        pthread_mutex_init(&playerLocks[i], NULL);
+    }
 
 
 
@@ -833,10 +898,10 @@ int main (int argc, char* argv[]) {
         }
         else {
             printf("\nClient found.\n\n");
-            arg = (ClientThreadArg*)malloc(sizeof(ClientThreadArg));
+            arg = (Client*)malloc(sizeof(Client));
             arg->socket = new_socket;
             arg->clientSerial = clientnum;
-            pthread_create(&(clientThread_id[clientnum++]), NULL, &clientThread, arg);
+            pthread_create(&(clientThreads[clientnum++]), NULL, &clientThread, arg);
         }
 
     }

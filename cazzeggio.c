@@ -16,6 +16,7 @@
 
 #define MAX_CREDENTIALS_LENGTH 50
 
+
 typedef struct List {
     void* data;
     struct List* next;
@@ -25,6 +26,7 @@ typedef struct ClientThreadArg {
     char nickname[MAX_CREDENTIALS_LENGTH];
     int socket;
     pthread_t thread;
+    int pipe[2];
 } ClientThreadArg;
 
 void freeData_baseType (void* p) {
@@ -172,12 +174,24 @@ void popola (char array[]) {
     array[i] = '\0';
 }
 
+ClientThreadArg* global;
+
+void* threadfun (void* arg) {
+    write(global->pipe[1], "wewe", strlen("wewe") + 1);
+    global = NULL;
+}
+
+void concatena (char* str1, char* str2) {
+    strcat(str1, str2);
+}
+
 int main() {
 
-    void* ptr = malloc(10);
-    free(ptr);
-    ptr = NULL;
-    free(ptr);
-    printf("No crash\n");
+    char* strings[3] = {"zeresima", "prima", "seconda"};
+
+    char* copie[3];
+    memcpy(copie, strings, sizeof(copie));
+    copie[2] = NULL;
+    printf("%s\n", strings[2]);
 
 }
