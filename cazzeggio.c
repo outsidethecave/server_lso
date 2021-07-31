@@ -176,22 +176,45 @@ void popola (char array[]) {
 
 ClientThreadArg* global;
 
-void* threadfun (void* arg) {
-    write(global->pipe[1], "wewe", strlen("wewe") + 1);
-    global = NULL;
+pthread_t prendiself() {
+    return pthread_self();
 }
+
+void* threadfun (void* arg) {
+    if (pthread_equal(pthread_self(), prendiself())) {
+        printf("Uguali\n");
+    }
+    else {
+        printf("Diversi\n");
+    }
+}
+
 
 void concatena (char* str1, char* str2) {
     strcat(str1, str2);
 }
 
+int makeTimestamp(char * tsBuff) {
+  time_t curSec;
+  struct tm * curDate;
+  char dateString[32];
+
+  curSec = time(NULL);
+  curDate = localtime( & curSec);
+  sprintf(tsBuff, "%02d-%02d-%d %02d:%02d:%02d",
+    curDate -> tm_mday,
+    curDate -> tm_mon + 1,
+    curDate -> tm_year + 1900,
+    curDate -> tm_hour,
+    curDate -> tm_min,
+    curDate -> tm_sec);
+
+  return 0;
+}
+
 int main() {
 
-    char* strings[3] = {"zeresima", "prima", "seconda"};
-
-    char* copie[3];
-    memcpy(copie, strings, sizeof(copie));
-    copie[2] = NULL;
-    printf("%s\n", strings[2]);
+    char* str = "provaprova";
+    printf("%d\n", (int)strlen(str));
 
 }
