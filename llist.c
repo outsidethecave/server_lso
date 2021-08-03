@@ -2,6 +2,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include "llist.h"
+#include "definizioni.h"
+
+
 
 int areEqual_str (void* p1, void* p2) {
     char* arg1 = (char*)p1;
@@ -10,18 +13,11 @@ int areEqual_str (void* p1, void* p2) {
     return (strcmp(arg1, arg2) == 0);
 }
 
-void printNode_str (List* node) {
-    char* data = (char*)node->data;
-    if (node->next) {
-        printf("%s -> ", data);
-    }
-    else {
-        printf("%s -> NULL\n", data);
-    }
-}
+int areEqual_cli (void* p1, void* p2) {
+    Client* arg1 = (Client*)p1;
+    Client* arg2 = (Client*)p2;
 
-char* toString_str (void* p1) {
-    return ((char*)p1);
+    return strcmp(arg1->nickname, arg2->nickname) == 0;
 }
 
 
@@ -49,6 +45,21 @@ List* append (List* list, void* data) {
         list = newNode(data);
     }
     return list;
+}
+
+int contains (List* list, void* data, int (*areEqual)(void*, void*)) {
+
+    if (list) {
+        if (areEqual(list->data, data)) {
+            return TRUE;
+        }
+        else {
+            return contains(list->next, data, areEqual);
+        }
+    }
+
+    return FALSE;
+
 }
 
 List* delete (List* list, void* data, int (*areEqual)(void*, void*), void (*freeData)(void*)) {
@@ -102,9 +113,63 @@ List* freelist (List* list, void (*freeData)(void*)) {
 
 }
 
-void print (List* list, void (*printNode)(List*)) {
+
+
+Game* getGameByID (List* list, int id) {
+
     if (list) {
-        printNode(list);
-        print(list->next, printNode);
+
+        if (((Game*)list->data)->id == id) {
+            return list->data;
+        }
+        else {
+            return getGameByID(list->next, id);
+        }
+
     }
+
+    return NULL;
+
+}
+
+List* deleteGameByID (List* list, int id) {
+    if (list) {
+        if (((Game*)list->data)->id == id) {
+            List* tmp = list->next;
+            free(list);
+            return tmp;
+        }
+        else if (list->next && ((Game*)list->next->data)->id == id) {
+            List* tmp = list->next;
+            list->next = tmp->next;
+            free(tmp);
+            return list;
+        }
+        else {
+            list->next = deleteGameByID(list->next, id);
+            return list;
+        }
+    }
+    return NULL;
+}
+
+List* deleteClientByID (List* list, int id) {
+    if (list) {
+        if (((Client*)list->data)->id == id) {
+            List* tmp = list->next;
+            free(list);
+            return tmp;
+        }
+        else if (list->next && ((Client*)list->next->data)->id == id) {
+            List* tmp = list->next;
+            list->next = tmp->next;
+            free(tmp);
+            return list;
+        }
+        else {
+            list->next = deleteClientByID(list->next, id);
+            return list;
+        }
+    }
+    return NULL;
 }

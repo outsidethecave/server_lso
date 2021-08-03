@@ -189,6 +189,23 @@ void* threadfun (void* arg) {
     }
 }
 
+void* get (List* list, void* data, int (*areEqual)(void*, void*)) {
+
+    if (list) {
+
+        if (areEqual(data, list->data)) {
+            return list->data;
+        }
+        else {
+            return get(list->next, data, areEqual);
+        }
+
+    }
+
+    return NULL;
+
+}
+
 
 void concatena (char* str1, char* str2) {
     strcat(str1, str2);
@@ -212,9 +229,13 @@ int makeTimestamp(char * tsBuff) {
   return 0;
 }
 
+typedef struct E {
+    int a;
+    int b;
+} E;
+
 int main() {
 
-    char* str = "provaprova";
-    printf("%d\n", (int)strlen(str));
+    printf("%d\n", (int)time(NULL));
 
 }

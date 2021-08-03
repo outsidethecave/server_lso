@@ -13,87 +13,26 @@
 #include <errno.h>
 #include <time.h>
 #include "llist.h"
+#include "definizioni.h"
 
-#define TRUE 1
-#define FALSE 0
-
-#define PORT 50000
-
-#define MAX_CREDENTIALS_LENGTH 64
-#define BUFFER_LENGTH 256
-#define SYMBOL_SIZE 3
-
-#define USERS_FILE "utenti.txt"
-#define USER_EVENTS_FILE "autenticazioni.txt"
-
-#define SIGNUP 1
-#define SIGNUP_SUCCESS "0\n"
-#define USER_ALREADY_EXISTS "1\n"
-
-#define LOGIN 2
-#define LOGIN_SUCCESS "0\n"
-#define USER_DOESNT_EXIST "1\n"
-#define WRONG_PASSWORD "2\n"
-
-#define VIEW_ACTIVE_USERS 3
-#define LOOK_FOR_MATCH 4
-
-#define STOP_LOOKING_FOR_MATCH 5
-#define START_MATCH "0\n"
-#define LEAVE_QUEUE "1\n"
-
-#define GAME_ACTION 6
-#define ACTIVE_PLAYER_AND_TIME "1"
-#define SUCCESSFUL_ATTACK "2"
-#define FAILED_ATTACK "3"
-#define MOVE_ON_OWN_SQUARE "4"
-#define MOVE_ON_FREE_SQUARE "5"
-#define TIME_ENDED "6\n"
-#define TIME_ENDEND_PIPE_MESSAGE_WRITE "T"
-#define TIME_ENDED_PIPE_MESSAGE_READ 'T'
-
-#define LEAVE_MATCH 7
-#define MATCH_LEFT "0\n"
-#define MATCH_LEFT_PIPE_MESSAGE_WRITE "X"
-#define MATCH_LEFT_PIPE_MESSAGE_READ 'X'
-
-#define LOGOUT 8
-
-#define NUMBER_OF_PLAYERS 3
-#define TIMER_SECONDS 30
-#define GRIDSIZE 7
-#define WIN 5
-
-typedef char Symbol[SYMBOL_SIZE];
-
-typedef struct Client {
-    int id;
-    char nickname[MAX_CREDENTIALS_LENGTH];
-    int socket;
-    int pipe[2];
-    int activeGame;
-    int positionInArrayOfPlayers;
-    pthread_t thread;
-} Client;
-
-typedef struct Player {
-    Client* client;
-    Symbol symbol;
-    int territories;
-    int x;
-    int y;
-} Player;
-
-typedef struct Game {
-    pthread_t thread;
-    int id;
-    Symbol** grid;
-    Player* players[NUMBER_OF_PLAYERS];
-    Player* activePlayer;
-} Game;
 
 
 static const char* Weekdays[] = {"Domenica", "Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato"};
+
+int users_fd;
+int user_events_fd;
+int gamenum = 0;
+List* clients = NULL;
+List* activeUsersList = NULL;
+List* clientsLookingForMatch = NULL;
+List* games = NULL;
+pthread_mutex_t clients_lock = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t activeUsers_lock = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t lookingForMatch_lock = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t gamenum_lock = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t users_file_lock = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t user_events_file_lock = PTHREAD_MUTEX_INITIALIZER;
+
 
 
 void makeTimestamp(char* timestamp) {
@@ -105,7 +44,7 @@ void makeTimestamp(char* timestamp) {
     seconds = time(NULL);
     date = localtime(&seconds);
 
-    sprintf(timestamp, "%s, %02d-%02d-%d %02d:%02d:%02d",
+    snprintf(dateString, sizeof(dateString), "%s, %02d-%02d-%d %02d:%02d:%02d",
         Weekdays[date->tm_wday],
         date->tm_mday,
         date->tm_mon + 1,
@@ -114,44 +53,13 @@ void makeTimestamp(char* timestamp) {
         date->tm_min,
         date->tm_sec);
 
+    strcpy(timestamp, dateString);
+
 }
-
-int areEqual_cli (void* p1, void* p2) {
-    Client* arg1 = (Client*)p1;
-    Client* arg2 = (Client*)p2;
-
-    return strcmp(arg1->nickname, arg2->nickname) == 0;
-}
-
-void printNode_cli (List* node) {
-    Client* data = (Client*)(node->data);
-    if (node->next) {
-        printf("(%s, %d, %lu) -> ", data->nickname, data->socket, data->thread);
-    }
-    else {
-        printf("(%s, %d, %lu) -> NULL\n", data->nickname, data->socket, data->thread);
-    }
-}
-
-int users_fd;
-int user_events_fd;
-int gamenum = 0;
-List* activeUsersList = NULL;
-List* clientsLookingForMatch = NULL;
-Game* gameArgs[40];
-pthread_t gameThreads[40];
-pthread_mutex_t activePlayerLocks[40];
-pthread_mutex_t gameFileLocks[40];
-pthread_mutex_t gamenum_lock = PTHREAD_MUTEX_INITIALIZER;
-pthread_mutex_t users_file_lock = PTHREAD_MUTEX_INITIALIZER;
-pthread_mutex_t user_events_file_lock = PTHREAD_MUTEX_INITIALIZER;
-pthread_mutex_t activeUsers_lock = PTHREAD_MUTEX_INITIALIZER;
-pthread_mutex_t lookingForMatch_lock = PTHREAD_MUTEX_INITIALIZER;
-
 
 void log_ClientConnection (int client, struct in_addr ip) {
 
-    char log[BUFFER_LENGTH] = "";
+    char log[128] = "";
     char timestamp[32];
     char ip_str[INET_ADDRSTRLEN];
 
@@ -170,7 +78,7 @@ void log_ClientConnection (int client, struct in_addr ip) {
 }
 void log_SignUp (char* nickname, int client) {
 
-    char log[BUFFER_LENGTH] = "";
+    char log[128] = "";
     char timestamp[32] = "";
 
     makeTimestamp(timestamp);
@@ -187,7 +95,7 @@ void log_SignUp (char* nickname, int client) {
 }
 void log_SignIn (char* nickname, int client) {
 
-    char log[BUFFER_LENGTH] = "";
+    char log[128] = "";
     char timestamp[32] = "";
 
     makeTimestamp(timestamp);
@@ -203,7 +111,7 @@ void log_SignIn (char* nickname, int client) {
 }
 void log_SignOut (char* nickname, int client) {
 
-    char log[BUFFER_LENGTH] = "";
+    char log[128] = "";
     char timestamp[32] = "";
 
     makeTimestamp(timestamp);
@@ -217,9 +125,8 @@ void log_SignOut (char* nickname, int client) {
     pthread_mutex_unlock(&user_events_file_lock);
 
 }
-int log_GameStart (Game* game) {
+void log_GameStart (Game* game) {
 
-    int gameFile;
     char gameFileName[64];
 
     char timestamp[32] = "";
@@ -237,7 +144,7 @@ int log_GameStart (Game* game) {
 
     for (i = 0; i < NUMBER_OF_PLAYERS; i++) {
         strcat(player_data, game->players[i]->client->nickname);
-        snprintf(i_str, sizeof(i_str), " (%d)", i);
+        snprintf(i_str, sizeof(i_str), " (%d, %d)", game->players[i]->x, game->players[i]->y);
         strcat(player_data, i_str);
         if (i < NUMBER_OF_PLAYERS - 1) {
             strcat(player_data, ", ");
@@ -247,60 +154,58 @@ int log_GameStart (Game* game) {
 
     strcat(log, player_data);
 
-    gameFile = open(gameFileName, O_RDWR | O_CREAT | O_APPEND, S_IRWXU);
-    if (gameFile == -1) {
+    game->file = open(gameFileName, O_RDWR | O_CREAT | O_APPEND, S_IRWXU);
+    if (game->file == -1) {
       perror("Errore di apertura del file della partita");
       exit(-1);
     }
 
-    if (write(gameFile, log, strlen(log)) == -1) {
+    if (write(game->file, log, strlen(log)) == -1) {
         perror("Errore di scrittura sul file della partita");
         exit(EXIT_FAILURE);
     }
 
-    return gameFile;
-
 }
-void log_GameConquest (int gameFile, Player* activePlayer, Player* defendingPlayer, int gameID) {
+void log_GameConquest (Game* game, int defendingPlayerIndex) {
 
     char log[512] = "";
     char timestamp[32] = "";
 
     makeTimestamp(timestamp);
 
-    pthread_mutex_lock(&activePlayerLocks[gameID]);
-    if (defendingPlayer) {
+    pthread_mutex_lock(&game->nullPlayerLock);
+    if (defendingPlayerIndex >= 0) {
         snprintf(log, sizeof(log), "[%s] CONQUISTA TERRITORIO: %s si sposta in posizione (%d, %d), sottraendola a %s. Territori di %s: %d, Territori di %s: %d\n\n",
             timestamp,
-            activePlayer->client->nickname,
-            activePlayer->x,
-            activePlayer->y,
-            defendingPlayer->client->nickname,
-            activePlayer->client->nickname,
-            activePlayer->territories,
-            defendingPlayer->client->nickname,
-            defendingPlayer->territories);
+            game->activePlayer->client->nickname,
+            game->activePlayer->x,
+            game->activePlayer->y,
+            game->players[defendingPlayerIndex]->client->nickname,
+            game->activePlayer->client->nickname,
+            game->activePlayer->territories,
+            game->players[defendingPlayerIndex]->client->nickname,
+            game->players[defendingPlayerIndex]->territories);
     }
     else {
         snprintf(log, sizeof(log), "[%s] CONQUISTA TERRITORIO: %s si sposta in posizione (%d, %d). Territori di %s: %d\n\n",
             timestamp,
-            activePlayer->client->nickname,
-            activePlayer->x,
-            activePlayer->y,
-            activePlayer->client->nickname,
-            activePlayer->territories);
+            game->activePlayer->client->nickname,
+            game->activePlayer->x,
+            game->activePlayer->y,
+            game->activePlayer->client->nickname,
+            game->activePlayer->territories);
     }
-    pthread_mutex_unlock(&activePlayerLocks[gameID]);
+    pthread_mutex_unlock(&game->nullPlayerLock);
 
-    pthread_mutex_lock(&gameFileLocks[gameID]);
-    if (write(gameFile, log, strlen(log)) == -1) {
+    pthread_mutex_lock(&game->gameFileLock);
+    if (write(game->file, log, strlen(log)) == -1) {
         perror("Errore di scrittura sul file della partita");
         exit(EXIT_FAILURE);
     }
-    pthread_mutex_unlock(&gameFileLocks[gameID]);
+    pthread_mutex_unlock(&game->gameFileLock);
 
 }
-void log_GameEnd (int gameFile, char* winner) {
+void log_GameEnd (Game* game, char* winner) {
 
     char timestamp[32] = "";
     char log[512];
@@ -313,17 +218,17 @@ void log_GameEnd (int gameFile, char* winner) {
         snprintf(log, sizeof(log), "\n\n------ PARTITA FINITA PER ABBANDONO [%s] ------\n", timestamp);
     }
 
-    if (write(gameFile, log, strlen(log)) == -1) {
+    if (write(game->file, log, strlen(log)) == -1) {
         perror("Errore di scrittura sul file della partita");
         exit(EXIT_FAILURE);
     }
 
-    close(gameFile);
+    close(game->file);
 
 }
 void log_ClientDisconnection (int client) {
 
-    char log[BUFFER_LENGTH] = "";
+    char log[128] = "";
     char timestamp[32] = "";
 
     makeTimestamp(timestamp);
@@ -344,7 +249,7 @@ int userExists (char* nickname) {
     // NON SI LOCKA IL MUTEX QUI PERCHE' VIENE LOCKATO DALLA FUNZIONE CHIAMANTE
 
     char read_char[1];
-    char nick_to_compare[MAX_CREDENTIALS_LENGTH];
+    char nick_to_compare[32];
     int password_reached = FALSE;
 
     if (lseek(users_fd, 0, SEEK_SET) < 0) {
@@ -364,7 +269,7 @@ int userExists (char* nickname) {
             }
         }
         else if (read_char[0] == '\n') {
-            memset(nick_to_compare, 0, MAX_CREDENTIALS_LENGTH);
+            memset(nick_to_compare, 0, sizeof(nick_to_compare));
             i = 0;
             password_reached = FALSE;
         }
@@ -377,31 +282,39 @@ int userExists (char* nickname) {
     return FALSE;
 
 }
-int saveCredentialsToFile (char* credentials_buffer, int socket) {
+int isConnected (char* nickname) {
 
-    strcat(credentials_buffer, "\n");
+    int ret;
 
-    char log[BUFFER_LENGTH] = "";
-    char timestamp[32] = "";
+    pthread_mutex_lock(&activeUsers_lock);
+    ret = contains(activeUsersList, nickname, areEqual_str);
+    pthread_mutex_unlock(&activeUsers_lock);
 
-    char credentials[MAX_CREDENTIALS_LENGTH] = {0};
-    char nickname[MAX_CREDENTIALS_LENGTH] = {0};
+    return ret;
+
+}
+int saveCredentialsToFile (char* credentialsBuffer, int socket) {
+
+    strcat(credentialsBuffer, "\n");
+
+    char credentials[64] = {0};
+    char nickname[32] = {0};
 
     int i, nick_flag = TRUE, ret = TRUE;
 
     pthread_mutex_lock(&users_file_lock);
 
-    for (i = 1; credentials_buffer[i] != '\0'; i++) {
-        if (credentials_buffer[i] == '|') {
+    for (i = 1; credentialsBuffer[i] != '\0'; i++) {
+        if (credentialsBuffer[i] == '|') {
             credentials[i-1] = ' ';
             nickname[i-1] = '\0';
             nick_flag = FALSE;
         }
         else {
-            credentials[i-1] = credentials_buffer[i];
+            credentials[i-1] = credentialsBuffer[i];
         }
         if (nick_flag) {
-            nickname[i-1] = credentials_buffer[i];
+            nickname[i-1] = credentialsBuffer[i];
         }
     }
     credentials[i] = '\0';
@@ -422,37 +335,42 @@ int saveCredentialsToFile (char* credentials_buffer, int socket) {
     return ret;
 
 }
-int signIn (char* credentials_buffer, Client* client) {
+int signIn (char* credentialsBuffer, Client* client) {
 
-    strcat(credentials_buffer, "\n");;
+    strcat(credentialsBuffer, "\n");
+
+    char nickname[32];
+    char password[32];
+
+    char nick_to_compare[32];
+    char password_to_compare[32];
 
     char read_char[1];
-    char nickname[MAX_CREDENTIALS_LENGTH];
-    char password[MAX_CREDENTIALS_LENGTH];
-    char nick_to_compare[MAX_CREDENTIALS_LENGTH];
-    char password_to_compare[MAX_CREDENTIALS_LENGTH];
 
-    int i, j = 0, nick_flag = TRUE;
-    for (i = 1; credentials_buffer[i] != '\n'; i++) {
-        if (credentials_buffer[i] == '|') {
+    int i, j = 0;
+    int nick_flag = TRUE;
+
+    for (i = 1; credentialsBuffer[i] != '\n'; i++) {
+        if (credentialsBuffer[i] == '|') {
             nickname[i-1] = '\0';
             client->nickname[i-1] = '\0';
             nick_flag = FALSE;
         }
         else {
             if (nick_flag) {
-                nickname[i-1] = credentials_buffer[i];
-                client->nickname[i-1] = credentials_buffer[i];
+                nickname[i-1] = credentialsBuffer[i];
+                client->nickname[i-1] = credentialsBuffer[i];
             }
             else {
-                password[j] = credentials_buffer[i];
+                password[j] = credentialsBuffer[i];
                 j++;
             }
         }
     }
-    password[i] = '\0';
+    password[j] = '\0';
 
-    i = 0; j = 0;
+    i = 0;
+    j = 0;
 
     pthread_mutex_lock(&users_file_lock);
 
@@ -461,7 +379,10 @@ int signIn (char* credentials_buffer, Client* client) {
         exit(EXIT_FAILURE);
     }
 
-    int nickname_found = FALSE, password_reached = FALSE, ret = 1;
+    int nickname_found = FALSE;
+    int password_reached = FALSE;
+    int ret = 1;
+
     while (read(users_fd, read_char, 1) > 0) {
         if (read_char[0] == ' ') {
             nick_to_compare[i] = '\0';
@@ -475,20 +396,23 @@ int signIn (char* credentials_buffer, Client* client) {
             password_to_compare[j] = '\0';
             if (nickname_found == TRUE) {
                 if (strcmp(password, password_to_compare) == 0) {
-                    ret = 0;   // LOGIN SUCCESS
-                    break;
+                    if (!isConnected(nickname)) {
+                        ret = 0;   // LOGIN SUCCESS
+                    }
+                    else {
+                        ret = 3;  // USER ALREADY CONNECTED
+                    }
                 }
                 else {
-                    ret = 2;   // WRONG PASSWORD
-                    break;
+                    ret = 2;      // WRONG PASSWORD
                 }
+                break;
             }
-            memset(nick_to_compare, 0, MAX_CREDENTIALS_LENGTH);
-            memset(password_to_compare, 0, MAX_CREDENTIALS_LENGTH);
+            memset(nick_to_compare, 0, sizeof(nick_to_compare));
+            memset(password_to_compare, 0, sizeof(nick_to_compare));
             i = 0;
             j = 0;
             password_reached = FALSE;
-            continue;
         }
         else {
             if (password_reached == FALSE) {
@@ -509,7 +433,7 @@ int signIn (char* credentials_buffer, Client* client) {
 }
 void onClientDisconnection (Client* client) {
 
-    int mutex_index = client->activeGame;
+    int gameID = client->activeGame;
 
     printf("Client %d disconnesso\n", client->socket);
 
@@ -521,27 +445,31 @@ void onClientDisconnection (Client* client) {
     clientsLookingForMatch = delete(clientsLookingForMatch, client, areEqual_cli, NULL);
     pthread_mutex_unlock(&lookingForMatch_lock);
 
-    if (mutex_index >= 0) {
+    if (gameID >= 0) {
 
-        pthread_mutex_lock(&activePlayerLocks[mutex_index]);
-        if (gameArgs[client->activeGame]->activePlayer->client == client) {
+        pthread_mutex_lock(&getGameByID(games, gameID)->nullPlayerLock);
+        if (getGameByID(games, gameID)->activePlayer->client == client) {
             if (write(client->pipe[1], MATCH_LEFT_PIPE_MESSAGE_WRITE, strlen(MATCH_LEFT_PIPE_MESSAGE_WRITE)) < 0) {
                 perror("Errore di scrittura sulla pipe");
                 exit(EXIT_FAILURE);
             };
         }
         else {
-            gameArgs[client->activeGame]->players[client->positionInArrayOfPlayers] = NULL;
+            getGameByID(games, gameID)->players[client->positionInArrayOfPlayers] = NULL;
         }
-        pthread_mutex_unlock(&activePlayerLocks[mutex_index]);
+        pthread_mutex_unlock(&getGameByID(games, gameID)->nullPlayerLock);
 
     }
 
     log_ClientDisconnection(client->socket);
 
-    memset(client->nickname, 0, MAX_CREDENTIALS_LENGTH);
+    memset(client->nickname, 0, sizeof(client->nickname));
 
     close(client->socket);
+
+    pthread_mutex_lock(&clients_lock);
+    clients = deleteClientByID(clients, client->id);
+    pthread_mutex_unlock(&clients_lock);
 
     free(client);
 
@@ -620,19 +548,19 @@ void* timerThread (void* argument) {
 
     sleep(TIMER_SECONDS);
 
-    pthread_mutex_lock(&activePlayerLocks[game->id]);
+    pthread_mutex_lock(&game->nullPlayerLock);
     if (game->activePlayer == activePlayer) {
         if (write(game->activePlayer->client->pipe[1], TIME_ENDEND_PIPE_MESSAGE_WRITE, strlen(TIME_ENDEND_PIPE_MESSAGE_WRITE)) < 0) {
             perror("Errore di scrittura sulla pipe");
             exit(EXIT_FAILURE);
         };
     }
-    pthread_mutex_unlock(&activePlayerLocks[game->id]);
+    pthread_mutex_unlock(&game->nullPlayerLock);
 
 }
-void setNewActivePlayer (Game* game, int* activePlayerIndex, int gameFile) {
+void setNewActivePlayer (Game* game, int* activePlayerIndex) {
 
-    pthread_mutex_lock(&activePlayerLocks[game->id]);
+    pthread_mutex_lock(&game->nullPlayerLock);
 
     int loopedOnce = FALSE;
     int i;
@@ -647,7 +575,8 @@ void setNewActivePlayer (Game* game, int* activePlayerIndex, int gameFile) {
         *activePlayerIndex += 1;
         if (*activePlayerIndex == NUMBER_OF_PLAYERS) {
             if (loopedOnce) {
-                log_GameEnd(gameFile, NULL);
+                log_GameEnd(game, NULL);
+                games = deleteGameByID(games, game->id);
                 freeGrid(game->grid);
                 for (i = 0; i < NUMBER_OF_PLAYERS; i++) {
                     if (game->players[i]) {
@@ -668,7 +597,7 @@ void setNewActivePlayer (Game* game, int* activePlayerIndex, int gameFile) {
 
     game->activePlayer = game->players[*activePlayerIndex];
 
-    pthread_mutex_unlock(&activePlayerLocks[game->id]);
+    pthread_mutex_unlock(&game->nullPlayerLock);
 
 }
 void sendActivePlayerAndTimerEnd (Game* game, int activePlayerIndex) {
@@ -697,14 +626,15 @@ void sendActivePlayerAndTimerEnd (Game* game, int activePlayerIndex) {
     for (i = 0; i < NUMBER_OF_PLAYERS; i++) {
         if (game->players[i]) {
             if (send(game->players[i]->client->socket, message, strlen(message), MSG_NOSIGNAL) < 0) {
+                pthread_mutex_lock(&game->nullPlayerLock);
                 free(game->players[i]);
                 game->players[i] = NULL;
+                pthread_mutex_unlock(&game->nullPlayerLock);
             }
         }
     }
 
     printf("Il giocatore attivo %s e' in posizione (%d, %d)\n", game->activePlayer->client->nickname, game->activePlayer->x, game->activePlayer->y);
-    printf("Messaggio inviato: %s\n", message);
 
 }
 void handleMoveTimeout (Game* game) {
@@ -715,8 +645,10 @@ void handleMoveTimeout (Game* game) {
     for (i = 0; i < NUMBER_OF_PLAYERS; i++) {
         if (game->players[i]) {
             if (send(game->players[i]->client->socket, TIME_ENDED, strlen(TIME_ENDED), MSG_NOSIGNAL) < 0) {
+                pthread_mutex_lock(&game->nullPlayerLock);
                 free(game->players[i]);
                 game->players[i] = NULL;
+                pthread_mutex_lock(&game->nullPlayerLock);
             }
         }
     }
@@ -732,7 +664,7 @@ void handleMatchLeftFromActivePlayer (Game* game, int activePlayerIndex) {
 int squareIsOwnedByEnemy (Game* game, int x, int y) {
     return (strcmp(game->grid[x][y], "0") != 0 && strcmp(game->grid[x][y], game->activePlayer->symbol) != 0);
 }
-void handleSquareIsOwnedByEnemy (Game* game, int x, int y, char moveToSend, int gameFile) {
+void handleSquareIsOwnedByEnemy (Game* game, int x, int y, char moveToSend) {
 
     int defendingPlayerIndex = atoi(game->grid[x][y]) - 1;
     int atk = rand()%6 + 1;
@@ -750,10 +682,13 @@ void handleSquareIsOwnedByEnemy (Game* game, int x, int y, char moveToSend, int 
         if (game->players[defendingPlayerIndex]) {
             game->players[defendingPlayerIndex]->territories--;
         }
+        else {
+            defendingPlayerIndex = -1;
+        }
         game->activePlayer->x = x;
         game->activePlayer->y = y;
 
-        log_GameConquest(gameFile, game->activePlayer, game->players[defendingPlayerIndex], game->id);
+        log_GameConquest(game, defendingPlayerIndex);
 
     }
     else {
@@ -765,8 +700,10 @@ void handleSquareIsOwnedByEnemy (Game* game, int x, int y, char moveToSend, int 
     for (i = 0; i < NUMBER_OF_PLAYERS; i++) {
         if (game->players[i]) {
             if (send(game->players[i]->client->socket, message, strlen(message), MSG_NOSIGNAL) < 0) {
+                pthread_mutex_lock(&game->nullPlayerLock);
                 free(game->players[i]);
                 game->players[i] = NULL;
+                pthread_mutex_lock(&game->nullPlayerLock);
             }
         }
     }
@@ -788,15 +725,17 @@ void handleSquareIsOwnedBySelf (Game* game, int x, int y, char moveToSend) {
     for (i = 0; i < NUMBER_OF_PLAYERS; i++) {
         if (game->players[i]) {
             if (send(game->players[i]->client->socket, message, strlen(message), MSG_NOSIGNAL) < 0) {
+                pthread_mutex_lock(&game->nullPlayerLock);
                 free(game->players[i]);
                 game->players[i] = NULL;
+                pthread_mutex_lock(&game->nullPlayerLock);
             }
         }
     }
 
 
 }
-void handleSquareIsFree (Game* game, int x, int y, char moveToSend, int gameFile) {
+void handleSquareIsFree (Game* game, int x, int y, char moveToSend) {
 
     int i;
 
@@ -807,15 +746,17 @@ void handleSquareIsFree (Game* game, int x, int y, char moveToSend, int gameFile
     game->activePlayer->x = x;
     game->activePlayer->y = y;
 
-    log_GameConquest(gameFile, game->activePlayer, NULL, game->id);
+    log_GameConquest(game, -1);
 
     snprintf(message, sizeof(message), "%s%c\n", MOVE_ON_FREE_SQUARE, moveToSend);
 
     for (i = 0; i < NUMBER_OF_PLAYERS; i++) {
         if (game->players[i]) {
             if (send(game->players[i]->client->socket, message, strlen(message), MSG_NOSIGNAL) < 0) {
+                pthread_mutex_lock(&game->nullPlayerLock);
                 free(game->players[i]);
                 game->players[i] = NULL;
+                pthread_mutex_lock(&game->nullPlayerLock);
             }
         }
     }
@@ -825,9 +766,8 @@ void handleSquareIsFree (Game* game, int x, int y, char moveToSend, int gameFile
 void* gameThread (void* game) {
 
     Game* this = game;
-    this->thread = pthread_self();
 
-    int gameFile = log_GameStart(this);
+    log_GameStart(this);
 
     int winIsReached = FALSE;
 
@@ -845,7 +785,7 @@ void* gameThread (void* game) {
 
     while (!winIsReached) {
 
-        setNewActivePlayer(this, &activePlayerIndex, gameFile);
+        setNewActivePlayer(this, &activePlayerIndex);
 
         sendActivePlayerAndTimerEnd(this, activePlayerIndex);
 
@@ -895,26 +835,28 @@ void* gameThread (void* game) {
         move = gameAction;
 
         if (squareIsOwnedByEnemy(this, new_x, new_y)) {
-            handleSquareIsOwnedByEnemy(this, new_x, new_y, move, gameFile);
+            handleSquareIsOwnedByEnemy(this, new_x, new_y, move);
         }
         else {
             if (squareIsOwnedBySelf(this, new_x, new_y)) {
                 handleSquareIsOwnedBySelf(this, new_x, new_y, move);
             }
             else {
-                handleSquareIsFree(this, new_x, new_y, move, gameFile);
+                handleSquareIsFree(this, new_x, new_y, move);
             }
         }
 
         if (this->activePlayer->territories == WIN) {
             printf("%s vince la partita\n\n", this->activePlayer->client->nickname);
-            log_GameEnd(gameFile, this->activePlayer->client->nickname);
+            log_GameEnd(this, this->activePlayer->client->nickname);
             winIsReached = TRUE;
         }
 
-        memset(clientMessage, 0, strlen(clientMessage));
+        memset(clientMessage, 0, sizeof(clientMessage));
 
     }
+
+    games = deleteGameByID(games, this->id);
 
     freeGrid(this->grid);
     for (i = 0; i < NUMBER_OF_PLAYERS; i++) {
@@ -929,7 +871,17 @@ void* gameThread (void* game) {
 }
 
 
+Game* createGame (int id) {
 
+    Game* game = (Game*)malloc(sizeof(Game));
+
+    game->id = gamenum;
+    pthread_mutex_init(&game->nullPlayerLock, NULL);
+    pthread_mutex_init(&game->gameFileLock, NULL);
+
+    return game;
+
+}
 void makePlayers (Game* game) {
 
     List* p;
@@ -964,8 +916,10 @@ void notifyPlayersOfStartMatch (Game* game) {
 
     for (i = 0; i < NUMBER_OF_PLAYERS; i++) {
         if (send(game->players[i]->client->socket, START_MATCH, strlen(START_MATCH), MSG_NOSIGNAL) < 0) {
+            pthread_mutex_lock(&game->nullPlayerLock);
             free(game->players[i]);
             game->players[i] = NULL;
+            pthread_mutex_lock(&game->nullPlayerLock);
         }
     }
 
@@ -976,8 +930,10 @@ void sendDataToAllPlayers (Game* game, char* data) {
 
     for (i = 0; i < NUMBER_OF_PLAYERS; i++) {
         if (send(game->players[i]->client->socket, data, strlen(data), MSG_NOSIGNAL) < 0) {
+            pthread_mutex_lock(&game->nullPlayerLock);
             free(game->players[i]);
             game->players[i] = NULL;
+            pthread_mutex_lock(&game->nullPlayerLock);
         }
     }
 
@@ -988,7 +944,7 @@ void initGame (Game* game) {
 
     int x, y;
 
-    char playerData[128];
+    char gameData[128];
 
     int i;
 
@@ -1009,17 +965,19 @@ void initGame (Game* game) {
 
         strcpy(grid[x][y], game->players[i]->symbol);
 
-        snprintf(playerData, sizeof(playerData), "%s|%s|%d|%d\n", game->players[i]->client->nickname, game->players[i]->symbol, x, y);
+        snprintf(gameData, sizeof(gameData), "%d|%d|%s|%s|%d|%d\n", GRIDSIZE, WIN, game->players[i]->client->nickname, game->players[i]->symbol, x, y);
 
-        sendDataToAllPlayers(game, playerData);
+        sendDataToAllPlayers(game, gameData);
 
     }
 
-    // Invia il terminatore "|\n" per segnalare ai giocatori che è terminato l'invio dei dati sui giocatori
+    // Invia il terminatore "|\n" per segnalare ai giocatori che è terminato l'invio dei dati
     for (i = 0; i < NUMBER_OF_PLAYERS; i++) {
         if (send(game->players[i]->client->socket, "|\n", 2, MSG_NOSIGNAL) < 0) {
+            pthread_mutex_lock(&game->nullPlayerLock);
             free(game->players[i]);
             game->players[i] = NULL;
+            pthread_mutex_lock(&game->nullPlayerLock);
         }
     }
 
@@ -1028,8 +986,7 @@ void start_match () {
 
     pthread_mutex_lock(&gamenum_lock);
 
-    Game* game = (Game*)malloc(sizeof(Game));
-    game->id = gamenum;
+    Game* game = createGame(gamenum);
 
     makePlayers(game);
 
@@ -1037,9 +994,10 @@ void start_match () {
 
     initGame(game);
 
-    gameArgs[gamenum] = game;
+    games = append(games, game);
 
-    pthread_create(&(gameThreads[gamenum++]), NULL, gameThread, game);
+    pthread_create(&game->thread, NULL, gameThread, game);
+    gamenum++;
 
     pthread_mutex_unlock(&gamenum_lock);
 
@@ -1050,8 +1008,8 @@ void start_match () {
 Client* createClient (int id, int socket) {
 
     Client* client;
-    struct timeval tv;
     int p[2];
+    struct timeval tv;
 
     client = (Client*)malloc(sizeof(Client));
     client->id = id;
@@ -1093,6 +1051,7 @@ void handleSignUpResult (Client* client, int signUpResult) {
 void handleSignInResult (Client* client, int signInResult) {
 
     if (signInResult == 0) {
+
         if (send(client->socket, LOGIN_SUCCESS, 2, MSG_NOSIGNAL) < 0) {
             onClientDisconnection(client);
         }
@@ -1103,45 +1062,52 @@ void handleSignInResult (Client* client, int signInResult) {
 
         printf("%s si connette sul client %d\n\n", client->nickname, client->socket);
         log_SignIn(client->nickname, client->socket);
+
+        return;
+
     }
     else if (signInResult == 1) {
-        memset(client->nickname, 0, sizeof(client->nickname));
         if (send(client->socket, USER_DOESNT_EXIST, 2, MSG_NOSIGNAL) < 0) {
             onClientDisconnection(client);
         }
     }
-    else {
-        memset(client->nickname, 0, sizeof(client->nickname));
+    else if (signInResult == 2){
         if (send(client->socket, WRONG_PASSWORD, 2, MSG_NOSIGNAL) < 0) {
             onClientDisconnection(client);
         }
     }
+    else {
+        if (send(client->socket, USER_ALREADY_CONNECTED, 2, MSG_NOSIGNAL) < 0) {
+            onClientDisconnection(client);
+        }
+    }
+
+    memset(client->nickname, 0, sizeof(client->nickname));
 
 }
 void handleLeaveMatch (Client* client) {
 
-    int mutex_index = client->activeGame;
+    int gameID = client->activeGame;
 
-    pthread_mutex_lock(&activePlayerLocks[mutex_index]);
-    if (gameArgs[client->activeGame]->activePlayer->client == client) {
+    pthread_mutex_lock(&getGameByID(games, gameID)->nullPlayerLock);
+    if (getGameByID(games, gameID)->activePlayer->client == client) {
         if (write(client->pipe[1], MATCH_LEFT_PIPE_MESSAGE_WRITE, strlen(MATCH_LEFT_PIPE_MESSAGE_WRITE)) < 0) {
             perror("Errore di scrittura sulla pipe");
             exit(EXIT_FAILURE);
         }
     }
     else {
-        free(gameArgs[client->activeGame]->players[client->positionInArrayOfPlayers]);
-        gameArgs[client->activeGame]->players[client->positionInArrayOfPlayers] = NULL;
+        free(getGameByID(games, gameID)->players[client->positionInArrayOfPlayers]);
+        getGameByID(games, gameID)->players[client->positionInArrayOfPlayers] = NULL;
         client->activeGame = -1;
         client->positionInArrayOfPlayers = -1;
     }
-    pthread_mutex_unlock(&activePlayerLocks[mutex_index]);
+    pthread_mutex_unlock(&getGameByID(games, gameID)->nullPlayerLock);
 
 }
 void* clientThread (void* client) {
 
     Client* this = client;
-    this->thread = pthread_self();
 
     char clientMessage[64];
 
@@ -1152,7 +1118,7 @@ void* clientThread (void* client) {
 
     while (TRUE) {
 
-        if (read(this->socket, clientMessage, sizeof(clientMessage)) <= 0) {
+        if (recv(this->socket, clientMessage, sizeof(clientMessage), 0) <= 0) {
             onClientDisconnection(this);
         }
         printf("MESSAGGIO RICEVUTO DAL CLIENT %d: %s\n", this->socket, clientMessage);
@@ -1216,7 +1182,7 @@ void* clientThread (void* client) {
                 activeUsersList = delete(activeUsersList, this->nickname, areEqual_str, NULL);
                 pthread_mutex_unlock(&activeUsers_lock);
                 log_SignOut(this->nickname, this->socket);
-                memset(this->nickname, 0, MAX_CREDENTIALS_LENGTH);
+                memset(this->nickname, 0, sizeof(this->nickname));
             break;
 
             default:
@@ -1226,7 +1192,7 @@ void* clientThread (void* client) {
 
         }
 
-        memset(clientMessage, 0, strlen(clientMessage));
+        memset(clientMessage, 0, sizeof(clientMessage));
 
     }
 
@@ -1238,7 +1204,6 @@ int main (int argc, char* argv[]) {
 
     srand(time(NULL));
 
-    pthread_t clientThreads[40];
     int clientnum = 0;
 
     struct sockaddr_in address;
@@ -1247,14 +1212,7 @@ int main (int argc, char* argv[]) {
 
     int listener_socket_fd = 0, new_socket = 0;
 
-    Client* arg;
-
-
-
-    int i;
-    for (i = 0; i < 40; i++) {
-        pthread_mutex_init(&activePlayerLocks[i], NULL);
-    }
+    Client* client;
 
 
 
@@ -1311,12 +1269,18 @@ int main (int argc, char* argv[]) {
             exit(EXIT_FAILURE);
         }
         else {
-            printf("\nClient found.\n\n");
-            arg = createClient(clientnum, new_socket);
+            printf("\nClient %d trovato.\n\n", new_socket);
+            client = createClient(clientnum, new_socket);
 
             log_ClientConnection(new_socket, address.sin_addr);
 
-            pthread_create(&(clientThreads[clientnum++]), NULL, clientThread, arg);
+            pthread_create(&client->thread, NULL, clientThread, client);
+
+            pthread_mutex_lock(&clients_lock);
+            clients = append(clients, client);
+            pthread_mutex_unlock(&clients_lock);
+
+            clientnum++;
         }
 
     }
