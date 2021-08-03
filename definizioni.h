@@ -47,7 +47,7 @@
 
 #define LOGOUT 8
 
-#define NUMBER_OF_PLAYERS 1
+#define NUMBER_OF_PLAYERS 2
 #define TIMER_SECONDS 30
 #define GRIDSIZE 7
 #define WIN 5
