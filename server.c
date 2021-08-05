@@ -21,23 +21,23 @@ int NUMBER_OF_PLAYERS;
 int GRIDSIZE;
 int WIN;
 
-
 const char* Weekdays[] = {"Domenica", "Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato"};
 
 int users_fd;
 int user_events_fd;
-
-int gamenum                           = 0;
 List* clients                         = NULL;
 List* activeUsersList                 = NULL;
 List* clientsLookingForMatch          = NULL;
 List* games                           = NULL;
+int gamenum                           = 0;
+
+pthread_mutex_t users_file_lock       = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t user_events_file_lock = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t clients_lock          = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t activeUsers_lock      = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t lookingForMatch_lock  = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t games_lock            = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t gamenum_lock          = PTHREAD_MUTEX_INITIALIZER;
-pthread_mutex_t users_file_lock       = PTHREAD_MUTEX_INITIALIZER;
-pthread_mutex_t user_events_file_lock = PTHREAD_MUTEX_INITIALIZER;
 
 
 

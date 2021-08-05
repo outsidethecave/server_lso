@@ -22,22 +22,24 @@ extern int NUMBER_OF_PLAYERS;
 extern int GRIDSIZE;
 extern int WIN;
 
-
 extern const char* Weekdays[];
 
 extern int users_fd;
 extern int user_events_fd;
-extern int gamenum;
 extern List* clients;
 extern List* activeUsersList;
 extern List* clientsLookingForMatch;
 extern List* games;
+extern int gamenum;
+
+extern pthread_mutex_t users_file_lock;
+extern pthread_mutex_t user_events_file_lock;
 extern pthread_mutex_t clients_lock;
 extern pthread_mutex_t activeUsers_lock;
 extern pthread_mutex_t lookingForMatch_lock;
+extern pthread_mutex_t games_lock;
 extern pthread_mutex_t gamenum_lock;
-extern pthread_mutex_t users_file_lock;
-extern pthread_mutex_t user_events_file_lock;
+
 
 
 // [START] Funzioni di logging
@@ -468,6 +470,7 @@ void onClientDisconnection (Client* client) {
 
     if (gameID >= 0) {
 
+        pthread_mutex_lock(&games_lock);
         pthread_mutex_lock(&getGameByID(games, gameID)->nullPlayerLock);
         if (getGameByID(games, gameID)->activePlayer->client == client) {
             if (write(client->pipe[1], MATCH_LEFT_PIPE_MESSAGE_WRITE, strlen(MATCH_LEFT_PIPE_MESSAGE_WRITE)) < 0) {
@@ -479,6 +482,7 @@ void onClientDisconnection (Client* client) {
             getGameByID(games, gameID)->players[client->positionInArrayOfPlayers] = NULL;
         }
         pthread_mutex_unlock(&getGameByID(games, gameID)->nullPlayerLock);
+        pthread_mutex_unlock(&games_lock);
 
     }
 
@@ -489,7 +493,7 @@ void onClientDisconnection (Client* client) {
     close(client->socket);
 
     pthread_mutex_lock(&clients_lock);
-    clients = deleteClientByID(clients, client->id);
+    clients = delete(clients, client, areEqual_cli, NULL);
     pthread_mutex_unlock(&clients_lock);
 
     free(client);
@@ -718,6 +722,7 @@ void handleLeaveMatch (Client* client) {
 
     int gameID = client->activeGame;
 
+    pthread_mutex_lock(&games_lock);
     pthread_mutex_lock(&getGameByID(games, gameID)->nullPlayerLock);
     if (getGameByID(games, gameID)->activePlayer->client == client) {
         if (write(client->pipe[1], MATCH_LEFT_PIPE_MESSAGE_WRITE, strlen(MATCH_LEFT_PIPE_MESSAGE_WRITE)) < 0) {
@@ -732,7 +737,21 @@ void handleLeaveMatch (Client* client) {
         client->positionInArrayOfPlayers = -1;
     }
     pthread_mutex_unlock(&getGameByID(games, gameID)->nullPlayerLock);
+    pthread_mutex_unlock(&games_lock);
 
+}
+
+int areEqual_cli (void* p1, void* p2) {
+    Client* client1 = (Client*)p1;
+    Client* client2 = (Client*)p2;
+
+    return client1->id == client2->id;
+}
+int areEqual_str (void* p1, void* p2) {
+    char* str1 = (char*)p1;
+    char* str2 = (char*)p2;
+
+    return (strcmp(str1, str2) == 0);
 }
 
 // [END] Funzioni del client
@@ -899,6 +918,16 @@ void setNewActivePlayer (Game* game, int* activePlayerIndex) {
     }
 
     game->activePlayer = game->players[*activePlayerIndex];
+
+    /*for (i = 0; i < NUMBER_OF_PLAYERS; i++) {
+        if (game->players[i]) {
+            printf("%s ", game->players[i]->client->nickname);
+        }
+        else {
+            printf("NULL ");
+        }
+    }
+    printf("\n");*/
 
     pthread_mutex_unlock(&game->nullPlayerLock);
 
@@ -1111,7 +1140,9 @@ void endGame (Game* game, char* winner) {
 
     log_GameEnd(game, winner);
 
-    games = deleteGameByID(games, game->id);
+    pthread_mutex_lock(&games_lock);
+    games = delete(games, game, areEqual_game, NULL);
+    pthread_mutex_unlock(&games_lock);
 
     freeGrid(game->grid);
     for (i = 0; i < NUMBER_OF_PLAYERS; i++) {
@@ -1125,6 +1156,29 @@ void endGame (Game* game, char* winner) {
     free(game);
 
     pthread_exit(NULL);
+
+}
+
+int areEqual_game (void* p1, void* p2) {
+    Game* game1 = (Game*)p1;
+    Game* game2 = (Game*)p2;
+
+    return game1->id == game2->id;
+}
+Game* getGameByID (List* list, int id) {
+
+    if (list) {
+
+        if (((Game*)list->data)->id == id) {
+            return list->data;
+        }
+        else {
+            return getGameByID(list->next, id);
+        }
+
+    }
+
+    return NULL;
 
 }
 
@@ -1143,7 +1197,9 @@ void start_match () {
 
     initGame(game);
 
+    pthread_mutex_lock(&games_lock);
     games = append(games, game);
+    pthread_mutex_unlock(&games_lock);
 
     pthread_create(&game->thread, NULL, gameThread, game);
     gamenum++;

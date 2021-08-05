@@ -6,22 +6,6 @@
 
 
 
-int areEqual_str (void* p1, void* p2) {
-    char* arg1 = (char*)p1;
-    char* arg2 = (char*)p2;
-
-    return (strcmp(arg1, arg2) == 0);
-}
-
-int areEqual_cli (void* p1, void* p2) {
-    Client* arg1 = (Client*)p1;
-    Client* arg2 = (Client*)p2;
-
-    return strcmp(arg1->nickname, arg2->nickname) == 0;
-}
-
-
-
 List* newNode (void* data) {
     List* newNode = (List*)malloc(sizeof(List));
     if (newNode) {
@@ -111,65 +95,4 @@ List* freelist (List* list, void (*freeData)(void*)) {
 
     return NULL;
 
-}
-
-
-
-Game* getGameByID (List* list, int id) {
-
-    if (list) {
-
-        if (((Game*)list->data)->id == id) {
-            return list->data;
-        }
-        else {
-            return getGameByID(list->next, id);
-        }
-
-    }
-
-    return NULL;
-
-}
-
-List* deleteGameByID (List* list, int id) {
-    if (list) {
-        if (((Game*)list->data)->id == id) {
-            List* tmp = list->next;
-            free(list);
-            return tmp;
-        }
-        else if (list->next && ((Game*)list->next->data)->id == id) {
-            List* tmp = list->next;
-            list->next = tmp->next;
-            free(tmp);
-            return list;
-        }
-        else {
-            list->next = deleteGameByID(list->next, id);
-            return list;
-        }
-    }
-    return NULL;
-}
-
-List* deleteClientByID (List* list, int id) {
-    if (list) {
-        if (((Client*)list->data)->id == id) {
-            List* tmp = list->next;
-            free(list);
-            return tmp;
-        }
-        else if (list->next && ((Client*)list->next->data)->id == id) {
-            List* tmp = list->next;
-            list->next = tmp->next;
-            free(tmp);
-            return list;
-        }
-        else {
-            list->next = deleteClientByID(list->next, id);
-            return list;
-        }
-    }
-    return NULL;
 }

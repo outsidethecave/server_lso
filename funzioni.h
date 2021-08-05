@@ -19,6 +19,7 @@
 #include "definizioni.h"
 
 
+//[START] Funzioni di logging
 
 void makeTimestamp(char* timestamp);
 
@@ -31,7 +32,10 @@ void log_GameConquest (Game* game, int defendingPlayerIndex);
 void log_GameEnd (Game* game, char* winner);
 void log_ClientDisconnection (int client);
 
+//[END] Funzioni di logging
 
+
+//[START] Funzioni del client
 
 int saveCredentialsToFile (char* credentialsBuffer, int socket);
 int userExists (char* nickname);
@@ -47,7 +51,13 @@ void handleSignUpResult (Client* client, int signUpResult);
 void handleSignInResult (Client* client, int signInResult);
 void handleLeaveMatch (Client* client);
 
+int areEqual_cli (void* p1, void* p2);
+int areEqual_str (void* p1, void* p2);
 
+//[END] Funzioni del client
+
+
+//[START] Funzioni di gioco
 
 Symbol** makeGrid ();
 void freeGrid (Symbol** grid);
@@ -58,6 +68,9 @@ void makePlayers (Game* game);
 void notifyPlayersOfStartMatch (Game* game);
 void initGame (Game* game);
 void sendDataToAllPlayers (Game* game, char* data);
+
+int areEqual_game (void* p1, void* p2);
+Game* getGameByID (List* list, int id);
 
 void* gameThread (void* game);
 void setNewActivePlayer (Game* game, int* activePlayerIndex);
@@ -72,6 +85,7 @@ void handleSquareIsOwnedBySelf (Game* game, int x, int y, char moveToSend);
 void handleSquareIsFree (Game* game, int x, int y, char moveToSend);
 void endGame (Game* game, char* winner);
 
+//[END] Funzioni di gioco
 
 void setGridSizeAndWinCondition ();
 
