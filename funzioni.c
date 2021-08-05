@@ -919,16 +919,6 @@ void setNewActivePlayer (Game* game, int* activePlayerIndex) {
 
     game->activePlayer = game->players[*activePlayerIndex];
 
-    /*for (i = 0; i < NUMBER_OF_PLAYERS; i++) {
-        if (game->players[i]) {
-            printf("%s ", game->players[i]->client->nickname);
-        }
-        else {
-            printf("NULL ");
-        }
-    }
-    printf("\n");*/
-
     pthread_mutex_unlock(&game->nullPlayerLock);
 
 }
