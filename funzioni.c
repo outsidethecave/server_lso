@@ -1027,17 +1027,20 @@ void handleSquareIsOwnedByEnemy (Game* game, int x, int y, char moveToSend) {
     char outcome[2];
     char message[16];
 
+    if (!game->players[defendingPlayerIndex]) {
+        defendingPlayerIndex = -1;
+        atk = 6;
+        def = 1;
+    }
+
     if (atk > def) {
 
         strcpy(outcome, SUCCESSFUL_ATTACK);
 
         strcpy(game->grid[x][y], game->activePlayer->symbol);
         game->activePlayer->territories++;
-        if (game->players[defendingPlayerIndex]) {
+        if (defendingPlayerIndex != -1) {
             game->players[defendingPlayerIndex]->territories--;
-        }
-        else {
-            defendingPlayerIndex = -1;
         }
         game->activePlayer->x = x;
         game->activePlayer->y = y;
