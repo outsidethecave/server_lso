@@ -2,16 +2,34 @@
 #define DEF_H
 
 #include <pthread.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <string.h>
+#include <signal.h>
+#include <pthread.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <sys/socket.h>
+#include <arpa/inet.h>
+#include <netinet/in.h>
+#include <errno.h>
+#include <time.h>
+#include "llist.h"
+
 
 #define TRUE 1
 #define FALSE 0
 
 #define PORT 50000
+#define BACKLOG 128
 
 #define SYMBOL_SIZE 3
 
 #define USERS_FILE "utenti.txt"
 #define USER_EVENTS_FILE "autenticazioni.txt"
+#define GAMES_FOLDER "./Partite"
 
 #define SIGNUP 1
 #define SIGNUP_SUCCESS "0\n"
@@ -47,14 +65,14 @@
 
 #define LOGOUT 8
 
-#define NUMBER_OF_PLAYERS 2
 #define TIMER_SECONDS 30
-#define GRIDSIZE 7
-#define WIN 5
+
+
 
 typedef char Symbol[SYMBOL_SIZE];
 
 typedef struct Client {
+    // Rappresenta un Client e le relative informazioni
     int id;
     char nickname[32];
     int socket;
@@ -65,6 +83,7 @@ typedef struct Client {
 } Client;
 
 typedef struct Player {
+    // Rappresenta un giocatore di una partita (che sarà sempre associato a un client)
     Client* client;
     Symbol symbol;
     int territories;
@@ -73,12 +92,13 @@ typedef struct Player {
 } Player;
 
 typedef struct Game {
+    // Rappresenta una partita
     int id;
     pthread_t thread;
     pthread_mutex_t nullPlayerLock;
     pthread_mutex_t gameFileLock;
     Symbol** grid;
-    Player* players[NUMBER_OF_PLAYERS];
+    Player** players;
     Player* activePlayer;
     int file;
 } Game;
