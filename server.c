@@ -83,7 +83,7 @@ int main (int argc, char* argv[]) {
 
 
     // Apertura del file di log
-    user_events_fd = open(USER_EVENTS_FILE, O_RDWR | O_CREAT | O_APPEND, S_IRWXU);
+    user_events_fd = open(USER_EVENTS_FILE, O_WRONLY | O_CREAT | O_APPEND, S_IRWXU);
     if (user_events_fd == -1) {
       perror("Errore di apertura del file degli eventi degli utenti");
       exit(-1);

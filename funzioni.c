@@ -165,7 +165,7 @@ void log_GameStart (Game* game) {
 
     strcat(log, player_data);
 
-    game->file = open(gameFileName, O_RDWR | O_CREAT | O_APPEND, S_IRWXU);
+    game->file = open(gameFileName, O_WRONLY | O_CREAT | O_APPEND, S_IRWXU);
     if (game->file == -1) {
       perror("Errore di apertura del file della partita");
       exit(-1);
@@ -436,7 +436,7 @@ int signIn (char* credentialsBuffer, Client* client) {
 
     pthread_mutex_unlock(&users_file_lock);
 
-    return ret;    // USER NOT FOUND (DOESN'T EXIST)
+    return ret;
 
 }
 int isConnected (char* nickname) {
@@ -808,10 +808,7 @@ void* gameThread (void* game) {
     char move;
 
     int activePlayerIndex = -1;
-    int defendingPlayerIndex;
     int new_x, new_y;
-
-    int i;
 
     while (!winIsReached) {
 

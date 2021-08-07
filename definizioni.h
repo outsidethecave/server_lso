@@ -28,7 +28,7 @@
 #define SYMBOL_SIZE 3
 
 #define USERS_FILE "utenti.txt"
-#define USER_EVENTS_FILE "autenticazioni.txt"
+#define USER_EVENTS_FILE "eventi.txt"
 #define GAMES_FOLDER "./Partite"
 
 #define SIGNUP 1
