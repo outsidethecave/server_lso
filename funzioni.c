@@ -291,12 +291,14 @@ int saveCredentialsToFile (char* credentialsBuffer, int socket) {
         ret = FALSE;
     }
 
-    if (write(users_fd, credentials, strlen(credentials)) == -1) {
-        perror("Errore di scrittura sul file degli utenti");
-        exit(EXIT_FAILURE);
-    }
+    if (ret) {
+        if (write(users_fd, credentials, strlen(credentials)) == -1) {
+            perror("Errore di scrittura sul file degli utenti");
+            exit(EXIT_FAILURE);
+        }
 
-    log_SignUp(nickname, socket);
+        log_SignUp(nickname, socket);
+    }
 
     pthread_mutex_unlock(&users_file_lock);
 
@@ -515,7 +517,6 @@ void sendUsersList (Client* client) {
     while (p) {
 
         nick_size = strlen((char*)(p->data)) + 1;
-
         nickname = (char*)malloc(nick_size * sizeof(char));
 
         strcpy(nickname, (char*)(p->data));
@@ -653,7 +654,6 @@ void* clientThread (void* client) {
             default:
                 onClientDisconnection(this);
             break;
-
         }
 
         memset(clientMessage, 0, sizeof(clientMessage));
