@@ -1,0 +1,14 @@
+------ PARTITA INIZIATA [Martedì, 17-08-2021 14:00:45] ------
+
+Giocatori: 1qwe (3, 3), 2qwe (1, 2)
+
+
+[Martedì, 17-08-2021 14:00:47] CONQUISTA TERRITORIO: 1qwe si sposta in posizione (3, 2). Territori di 1qwe: 2
+
+[Martedì, 17-08-2021 14:00:50] CONQUISTA TERRITORIO: 2qwe si sposta in posizione (2, 2). Territori di 2qwe: 2
+
+[Martedì, 17-08-2021 14:01:23] CONQUISTA TERRITORIO: 1qwe si sposta in posizione (2, 2), sottraendola a 2qwe. Territori di 1qwe: 3, Territori di 2qwe: 1
+
+
+
+------ PARTITA FINITA PER ABBANDONO [Martedì, 17-08-2021 14:01:26] ------

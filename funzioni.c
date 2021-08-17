@@ -68,7 +68,7 @@ void makeTimestamp(char* timestamp) {
 
 }
 
-void log_ClientConnection (int client, struct in_addr ip) {
+void log_ClientConnection (int clientSocket, struct in_addr ip) {
 
     char log[128] = "";
     char timestamp[32];
@@ -77,7 +77,7 @@ void log_ClientConnection (int client, struct in_addr ip) {
     makeTimestamp(timestamp);
     inet_ntop(AF_INET, &ip, ip_str, INET_ADDRSTRLEN);
 
-    snprintf(log, sizeof(log), "[%s] CONNESSIONE CLIENT: si connette il client %d con indirizzo %s\n\n", timestamp, client, ip_str);
+    snprintf(log, sizeof(log), "[%s] CONNESSIONE CLIENT: si connette il client %d con indirizzo %s\n\n", timestamp, clientSocket, ip_str);
 
     pthread_mutex_lock(&user_events_file_lock);
     if (write(user_events_fd, log, strlen(log)) == -1) {
@@ -87,14 +87,14 @@ void log_ClientConnection (int client, struct in_addr ip) {
     pthread_mutex_unlock(&user_events_file_lock);
 
 }
-void log_SignUp (char* nickname, int client) {
+void log_SignUp (char* nickname, int clientSocket) {
 
     char log[128] = "";
     char timestamp[32] = "";
 
     makeTimestamp(timestamp);
 
-    snprintf(log, sizeof(log), "[%s] REGISTRAZIONE UTENTE: %s si registra al servizio dal clent %d\n\n", timestamp, nickname, client);
+    snprintf(log, sizeof(log), "[%s] REGISTRAZIONE UTENTE: %s si registra al servizio dal clent %d\n\n", timestamp, nickname, clientSocket);
 
     pthread_mutex_lock(&user_events_file_lock);
     if (write(user_events_fd, log, strlen(log)) == -1) {
@@ -104,13 +104,13 @@ void log_SignUp (char* nickname, int client) {
     pthread_mutex_unlock(&user_events_file_lock);
 
 }
-void log_SignIn (char* nickname, int client) {
+void log_SignIn (char* nickname, int clientSocket) {
 
     char log[128] = "";
     char timestamp[32] = "";
 
     makeTimestamp(timestamp);
-    snprintf(log, sizeof(log), "[%s] ACCESSO UTENTE: %s si registra al servizio dal client %d\n\n", timestamp, nickname, client);
+    snprintf(log, sizeof(log), "[%s] ACCESSO UTENTE: %s si registra al servizio dal client %d\n\n", timestamp, nickname, clientSocket);
 
     pthread_mutex_lock(&user_events_file_lock);
     if (write(user_events_fd, log, strlen(log)) == -1) {
@@ -120,13 +120,13 @@ void log_SignIn (char* nickname, int client) {
     pthread_mutex_unlock(&user_events_file_lock);
 
 }
-void log_SignOut (char* nickname, int client) {
+void log_SignOut (char* nickname, int clientSocket) {
 
     char log[128] = "";
     char timestamp[32] = "";
 
     makeTimestamp(timestamp);
-    snprintf(log, sizeof(log), "[%s] LOG OUT UTENTE: %s si disconnette dal client %d\n\n", timestamp, nickname, client);
+    snprintf(log, sizeof(log), "[%s] LOG OUT UTENTE: %s si disconnette dal client %d\n\n", timestamp, nickname, clientSocket);
 
     pthread_mutex_lock(&user_events_file_lock);
     if (write(user_events_fd, log, strlen(log)) == -1) {
@@ -237,13 +237,13 @@ void log_GameEnd (Game* game, char* winner) {
     close(game->file);
 
 }
-void log_ClientDisconnection (int client) {
+void log_ClientDisconnection (int clientSocket) {
 
     char log[128] = "";
     char timestamp[32] = "";
 
     makeTimestamp(timestamp);
-    snprintf(log, sizeof(log), "[%s] DISCONNESSIONE: Il client %d si disconnette\n\n", timestamp, client);
+    snprintf(log, sizeof(log), "[%s] DISCONNESSIONE: Il client %d si disconnette\n\n", timestamp, clientSocket);
 
     pthread_mutex_lock(&user_events_file_lock);
     if (write(user_events_fd, log, strlen(log)) == -1) {
@@ -538,7 +538,7 @@ void sendUsersList (Client* client) {
 
 }
 
-Client* createClient (int id, int socket) {
+Client* createClient (ulong id, int socket) {
 
     // Crea un Client e lo inizializza, settando il timeout della sua socket a 630 secondi (10 minuti e mezzo)
 
@@ -924,7 +924,7 @@ void sendActivePlayerAndTimerEnd (Game* game, int activePlayerIndex) {
     // Invia al client il giocatore attivo e il tempo di fine del timer della mossa
     // Il messaggio è della forma 1 + (0) + INDICE GIOCATORE + TEMPO DI FINE + \n
 
-    unsigned long timerEnd = time(NULL) + TIMER_SECONDS;
+    ulong timerEnd = time(NULL) + TIMER_SECONDS;
 
     char activePlayerIndex_str[2];
     char timerEnd_str[16];
@@ -1018,11 +1018,12 @@ void handleSquareIsOwnedByEnemy (Game* game, int x, int y, char moveToSend) {
     // Gestisce il caso in cui la casella di destinazione è posseduta da un giocatore nemico
 
     int defendingPlayerIndex = atoi(game->grid[x][y]) - 1;
-    int atk = rand()%6 + 1;
-    int def = rand()%6 + 1;
     int i;
     char outcome[2];
     char message[16];
+
+    int atk = rand()%6 + 1;
+    int def = rand()%6 + 1;
 
     if (!game->players[defendingPlayerIndex]) {
         defendingPlayerIndex = -1;
@@ -1155,7 +1156,7 @@ int areEqual_game (void* p1, void* p2) {
 
     return game1->id == game2->id;
 }
-Game* getGameByID (List* list, int id) {
+Game* getGameByID (List* list, ulong id) {
 
     if (list) {
 
@@ -1179,7 +1180,7 @@ void start_match () {
 
     pthread_mutex_lock(&gamenum_lock);
 
-    Game* game = createGame(gamenum);
+    Game* game = createGame();
 
     makePlayers(game);
 
@@ -1197,7 +1198,7 @@ void start_match () {
     pthread_mutex_unlock(&gamenum_lock);
 
 }
-Game* createGame (int id) {
+Game* createGame () {
 
     // Alloca memoria per una partita
 
@@ -1366,4 +1367,11 @@ void setGridSizeAndWinCondition () {
         WIN = 20;
     }
 
+}
+void prepareRand() {
+    int i = 0;
+    srand(time(NULL));
+    while (i++ < 1000) {
+        rand();
+    }
 }

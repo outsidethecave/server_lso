@@ -69,11 +69,13 @@
 
 
 
+typedef unsigned long ulong;
+
 typedef char Symbol[SYMBOL_SIZE];
 
 typedef struct Client {
     // Rappresenta un Client e le relative informazioni
-    int id;
+    ulong id;
     char nickname[32];
     int socket;
     int pipe[2];
@@ -93,7 +95,7 @@ typedef struct Player {
 
 typedef struct Game {
     // Rappresenta una partita
-    int id;
+    ulong id;
     pthread_t thread;
     pthread_mutex_t nullPlayerLock;
     pthread_mutex_t gameFileLock;

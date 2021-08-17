@@ -29,7 +29,7 @@ List* clients                         = NULL;
 List* activeUsersList                 = NULL;
 List* clientsLookingForMatch          = NULL;
 List* games                           = NULL;
-int gamenum                           = 0;
+ulong gamenum                         = 0;
 
 pthread_mutex_t users_file_lock       = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t user_events_file_lock = PTHREAD_MUTEX_INITIALIZER;
@@ -42,7 +42,6 @@ pthread_mutex_t gamenum_lock          = PTHREAD_MUTEX_INITIALIZER;
 
 
 int main (int argc, char* argv[]) {
-
 
     if (argc != 2) {
         printf("\nArgomenti non validi: bisogna passare come parametro il numero di giocatori per partita, compreso tra 2 e 10\n\n");
@@ -59,15 +58,15 @@ int main (int argc, char* argv[]) {
     NUMBER_OF_PLAYERS = atoi(argv[1]);
     setGridSizeAndWinCondition();
 
-    srand(time(NULL));
+    prepareRand();
 
     struct sockaddr_in address;
     int addrlen = sizeof(address);
     int options = 1;
 
-    int listener_socket_fd = 0;
-    int new_socket         = 0;
-    int clientnum          = 0;
+    int listener_socket_fd    = 0;
+    int new_socket            = 0;
+    ulong clientnum           = 0;
 
     Client* client;
 

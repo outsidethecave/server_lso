@@ -23,14 +23,14 @@
 
 void makeTimestamp(char* timestamp);
 
-void log_ClientConnection (int client, struct in_addr ip);
-void log_SignUp (char* nickname, int client);
-void log_SignIn (char* nickname, int client);
-void log_SignOut (char* nickname, int client);
+void log_ClientConnection (int clientSocket, struct in_addr ip);
+void log_SignUp (char* nickname, int clientSocket);
+void log_SignIn (char* nickname, int clientSocket);
+void log_SignOut (char* nickname, int clientSocket);
 void log_GameStart (Game* game);
 void log_GameConquest (Game* game, int defendingPlayerIndex);
 void log_GameEnd (Game* game, char* winner);
-void log_ClientDisconnection (int client);
+void log_ClientDisconnection (int clientSocket);
 
 //[END] Funzioni di logging
 
@@ -45,7 +45,7 @@ void onClientDisconnection (Client* client);
 
 void sendUsersList (Client* client);
 
-Client* createClient (int id, int socket);
+Client* createClient (ulong id, int socket);
 void* clientThread (void* client);
 void handleSignUpResult (Client* client, int signUpResult);
 void handleSignInResult (Client* client, int signInResult);
@@ -63,14 +63,14 @@ Symbol** makeGrid ();
 void freeGrid (Symbol** grid);
 
 void start_match ();
-Game* createGame (int id);
+Game* createGame ();
 void makePlayers (Game* game);
 void notifyPlayersOfStartMatch (Game* game);
 void initGame (Game* game);
 void sendDataToAllPlayers (Game* game, char* data);
 
 int areEqual_game (void* p1, void* p2);
-Game* getGameByID (List* list, int id);
+Game* getGameByID (List* list, ulong id);
 
 void* gameThread (void* game);
 void setNewActivePlayer (Game* game, int* activePlayerIndex);
@@ -88,5 +88,6 @@ void endGame (Game* game, char* winner);
 //[END] Funzioni di gioco
 
 void setGridSizeAndWinCondition ();
+void prepareRand();
 
 #endif
