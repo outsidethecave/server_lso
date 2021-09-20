@@ -1,0 +1,10 @@
+------ PARTITA INIZIATA [Lunedì, 20-09-2021 11:20:49] ------
+
+Giocatori: 1qwe (2, 3), 2qwe (3, 4), 3qwe (2, 2)
+
+
+[Lunedì, 20-09-2021 11:22:29] CONQUISTA TERRITORIO: 1qwe si sposta in posizione (3, 3). Territori di 1qwe: 2
+
+
+
+------ PARTITA FINITA PER ABBANDONO [Lunedì, 20-09-2021 11:24:07] ------
