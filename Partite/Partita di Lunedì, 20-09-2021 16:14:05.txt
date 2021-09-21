@@ -1,0 +1,10 @@
+------ PARTITA INIZIATA [Lunedì, 20-09-2021 16:14:05] ------
+
+Giocatori: user1 (2, 2), user2 (3, 3), user3 (0, 1)
+
+
+[Lunedì, 20-09-2021 16:14:26] CONQUISTA TERRITORIO: user1 si sposta in posizione (2, 1). Territori di user1: 2
+
+
+
+------ PARTITA FINITA PER ABBANDONO [Lunedì, 20-09-2021 16:15:09] ------

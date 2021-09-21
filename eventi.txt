@@ -1,0 +1,82 @@
+[Lunedì, 20-09-2021 13:21:18] CONNESSIONE CLIENT: si connette il client 6 con indirizzo 192.168.1.231
+
+[Lunedì, 20-09-2021 13:21:18] CONNESSIONE CLIENT: si connette il client 9 con indirizzo 192.168.1.231
+
+[Lunedì, 20-09-2021 13:21:19] CONNESSIONE CLIENT: si connette il client 12 con indirizzo 192.168.1.231
+
+[Lunedì, 20-09-2021 13:21:32] DISCONNESSIONE: Il client 12 si disconnette
+
+[Lunedì, 20-09-2021 13:21:32] DISCONNESSIONE: Il client 6 si disconnette
+
+[Lunedì, 20-09-2021 13:21:32] DISCONNESSIONE: Il client 9 si disconnette
+
+[Lunedì, 20-09-2021 13:43:03] CONNESSIONE CLIENT: si connette il client 6 con indirizzo 192.168.1.231
+
+[Lunedì, 20-09-2021 13:43:03] CONNESSIONE CLIENT: si connette il client 9 con indirizzo 192.168.1.231
+
+[Lunedì, 20-09-2021 13:43:03] CONNESSIONE CLIENT: si connette il client 12 con indirizzo 192.168.1.231
+
+[Lunedì, 20-09-2021 13:43:22] ACCESSO UTENTE: 1qwe si registra al servizio dal client 12
+
+[Lunedì, 20-09-2021 13:43:26] ACCESSO UTENTE: 2qwe si registra al servizio dal client 9
+
+[Lunedì, 20-09-2021 13:43:31] ACCESSO UTENTE: 3qwe si registra al servizio dal client 6
+
+[Lunedì, 20-09-2021 13:45:32] DISCONNESSIONE: Il client 12 si disconnette
+
+[Lunedì, 20-09-2021 13:45:32] DISCONNESSIONE: Il client 6 si disconnette
+
+[Lunedì, 20-09-2021 13:45:32] DISCONNESSIONE: Il client 9 si disconnette
+
+[Lunedì, 20-09-2021 15:47:47] CONNESSIONE CLIENT: si connette il client 6 con indirizzo 192.168.1.231
+
+[Lunedì, 20-09-2021 15:47:49] CONNESSIONE CLIENT: si connette il client 9 con indirizzo 192.168.1.231
+
+[Lunedì, 20-09-2021 15:47:50] CONNESSIONE CLIENT: si connette il client 12 con indirizzo 192.168.1.231
+
+[Lunedì, 20-09-2021 15:48:40] REGISTRAZIONE UTENTE: user1 si registra al servizio dal clent 6
+
+[Lunedì, 20-09-2021 15:48:52] REGISTRAZIONE UTENTE: user2 si registra al servizio dal clent 6
+
+[Lunedì, 20-09-2021 15:48:59] REGISTRAZIONE UTENTE: user3 si registra al servizio dal clent 6
+
+[Lunedì, 20-09-2021 15:49:10] ACCESSO UTENTE: user1 si registra al servizio dal client 6
+
+[Lunedì, 20-09-2021 15:49:18] ACCESSO UTENTE: user2 si registra al servizio dal client 12
+
+[Lunedì, 20-09-2021 15:49:24] ACCESSO UTENTE: user3 si registra al servizio dal client 9
+
+[Lunedì, 20-09-2021 15:52:45] LOG OUT UTENTE: user2 si disconnette dal client 12
+
+[Lunedì, 20-09-2021 15:53:03] ACCESSO UTENTE: user2 si registra al servizio dal client 12
+
+[Lunedì, 20-09-2021 16:11:53] DISCONNESSIONE: Il client 6 si disconnette
+
+[Lunedì, 20-09-2021 16:13:27] DISCONNESSIONE: Il client 12 si disconnette
+
+[Lunedì, 20-09-2021 16:13:29] DISCONNESSIONE: Il client 9 si disconnette
+
+[Lunedì, 20-09-2021 16:13:37] CONNESSIONE CLIENT: si connette il client 15 con indirizzo 192.168.1.231
+
+[Lunedì, 20-09-2021 16:13:37] CONNESSIONE CLIENT: si connette il client 12 con indirizzo 192.168.1.231
+
+[Lunedì, 20-09-2021 16:13:38] CONNESSIONE CLIENT: si connette il client 18 con indirizzo 192.168.1.231
+
+[Lunedì, 20-09-2021 16:13:48] ACCESSO UTENTE: user1 si registra al servizio dal client 15
+
+[Lunedì, 20-09-2021 16:13:54] ACCESSO UTENTE: user2 si registra al servizio dal client 12
+
+[Lunedì, 20-09-2021 16:14:00] ACCESSO UTENTE: user3 si registra al servizio dal client 18
+
+[Lunedì, 20-09-2021 16:14:42] CONNESSIONE CLIENT: si connette il client 21 con indirizzo 192.168.1.231
+
+[Lunedì, 20-09-2021 16:14:49] DISCONNESSIONE: Il client 18 si disconnette
+
+[Lunedì, 20-09-2021 16:14:53] ACCESSO UTENTE: user3 si registra al servizio dal client 21
+
+[Lunedì, 20-09-2021 16:15:09] DISCONNESSIONE: Il client 12 si disconnette
+
+[Lunedì, 20-09-2021 16:15:09] DISCONNESSIONE: Il client 15 si disconnette
+
+[Lunedì, 20-09-2021 16:15:09] DISCONNESSIONE: Il client 21 si disconnette
+

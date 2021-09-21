@@ -985,6 +985,8 @@ void handleMoveTimeout (Game* game) {
 
     int i;
 
+    printf("Debug");
+
     printf("\nTempo scaduto per %s\n", game->activePlayer->client->nickname);
     for (i = 0; i < NUMBER_OF_PLAYERS; i++) {
         if (game->players[i]) {

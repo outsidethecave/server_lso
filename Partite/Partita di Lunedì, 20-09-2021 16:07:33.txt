@@ -1,0 +1,27 @@
+------ PARTITA INIZIATA [Lunedì, 20-09-2021 16:07:33] ------
+
+Giocatori: user1 (4, 2), user2 (0, 1), user3 (3, 4)
+
+
+[Lunedì, 20-09-2021 16:07:48] CONQUISTA TERRITORIO: user1 si sposta in posizione (4, 1). Territori di user1: 2
+
+[Lunedì, 20-09-2021 16:07:51] CONQUISTA TERRITORIO: user2 si sposta in posizione (1, 1). Territori di user2: 2
+
+[Lunedì, 20-09-2021 16:07:54] CONQUISTA TERRITORIO: user3 si sposta in posizione (2, 4). Territori di user3: 2
+
+[Lunedì, 20-09-2021 16:07:57] CONQUISTA TERRITORIO: user1 si sposta in posizione (4, 0). Territori di user1: 3
+
+[Lunedì, 20-09-2021 16:08:22] CONQUISTA TERRITORIO: user3 si sposta in posizione (2, 3). Territori di user3: 3
+
+[Lunedì, 20-09-2021 16:08:29] CONQUISTA TERRITORIO: user1 si sposta in posizione (3, 0). Territori di user1: 4
+
+[Lunedì, 20-09-2021 16:08:53] CONQUISTA TERRITORIO: user3 si sposta in posizione (1, 3). Territori di user3: 4
+
+[Lunedì, 20-09-2021 16:09:03] CONQUISTA TERRITORIO: user3 si sposta in posizione (1, 2). Territori di user3: 5
+
+[Lunedì, 20-09-2021 16:09:11] CONQUISTA TERRITORIO: user3 si sposta in posizione (1, 1). Territori di user3: 6
+
+[Lunedì, 20-09-2021 16:09:11] VITTORIA: user3 vince la partita
+
+
+------ PARTITA FINITA [Lunedì, 20-09-2021 16:09:11] ------

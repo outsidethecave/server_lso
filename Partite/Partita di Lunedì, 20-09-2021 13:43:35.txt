@@ -1,0 +1,27 @@
+------ PARTITA INIZIATA [Lunedì, 20-09-2021 13:43:35] ------
+
+Giocatori: 3qwe (4, 2), 2qwe (4, 3), 1qwe (3, 4)
+
+
+[Lunedì, 20-09-2021 13:43:38] CONQUISTA TERRITORIO: 3qwe si sposta in posizione (4, 3), sottraendola a 2qwe. Territori di 3qwe: 2, Territori di 2qwe: 0
+
+[Lunedì, 20-09-2021 13:43:41] CONQUISTA TERRITORIO: 2qwe si sposta in posizione (4, 4). Territori di 2qwe: 1
+
+[Lunedì, 20-09-2021 13:44:54] CONQUISTA TERRITORIO: 2qwe si sposta in posizione (4, 3), sottraendola a 3qwe. Territori di 2qwe: 2, Territori di 3qwe: 1
+
+[Lunedì, 20-09-2021 13:44:57] CONQUISTA TERRITORIO: 1qwe si sposta in posizione (3, 3). Territori di 1qwe: 2
+
+[Lunedì, 20-09-2021 13:45:05] CONQUISTA TERRITORIO: 1qwe si sposta in posizione (3, 2). Territori di 1qwe: 3
+
+[Lunedì, 20-09-2021 13:45:08] CONQUISTA TERRITORIO: 3qwe si sposta in posizione (4, 1). Territori di 3qwe: 2
+
+[Lunedì, 20-09-2021 13:45:12] CONQUISTA TERRITORIO: 1qwe si sposta in posizione (3, 1). Territori di 1qwe: 4
+
+[Lunedì, 20-09-2021 13:45:21] CONQUISTA TERRITORIO: 1qwe si sposta in posizione (3, 0). Territori di 1qwe: 5
+
+[Lunedì, 20-09-2021 13:45:29] CONQUISTA TERRITORIO: 1qwe si sposta in posizione (2, 0). Territori di 1qwe: 6
+
+[Lunedì, 20-09-2021 13:45:29] VITTORIA: 1qwe vince la partita
+
+
+------ PARTITA FINITA [Lunedì, 20-09-2021 13:45:29] ------
