@@ -80,3 +80,21 @@
 
 [Lunedì, 20-09-2021 16:15:09] DISCONNESSIONE: Il client 21 si disconnette
 
+[Martedì, 21-09-2021 20:48:32] CONNESSIONE CLIENT: si connette il client 6 con indirizzo 192.168.1.231
+
+[Martedì, 21-09-2021 20:48:35] CONNESSIONE CLIENT: si connette il client 9 con indirizzo 192.168.1.231
+
+[Martedì, 21-09-2021 20:48:41] CONNESSIONE CLIENT: si connette il client 12 con indirizzo 192.168.1.231
+
+[Martedì, 21-09-2021 20:48:50] ACCESSO UTENTE: 1qwe si registra al servizio dal client 9
+
+[Martedì, 21-09-2021 20:49:08] ACCESSO UTENTE: 2qwe si registra al servizio dal client 12
+
+[Martedì, 21-09-2021 20:49:13] ACCESSO UTENTE: 3qwe si registra al servizio dal client 6
+
+[Martedì, 21-09-2021 20:50:02] DISCONNESSIONE: Il client 12 si disconnette
+
+[Martedì, 21-09-2021 20:50:10] DISCONNESSIONE: Il client 9 si disconnette
+
+[Martedì, 21-09-2021 20:53:28] DISCONNESSIONE: Il client 6 si disconnette
+

@@ -890,7 +890,11 @@ void setNewActivePlayer (Game* game, int* activePlayerIndex) {
 
     // Imposta il prossimo giocatore attivo, assicurandosi di terminare la partita qualora abbiano abbandonato tutti
 
+    printf("debug1\n")
+
     pthread_mutex_lock(&game->nullPlayerLock);
+
+    printf("debug2\n")
 
     int loopedOnce = FALSE;
     int i;
@@ -917,6 +921,8 @@ void setNewActivePlayer (Game* game, int* activePlayerIndex) {
     game->activePlayer = game->players[*activePlayerIndex];
 
     pthread_mutex_unlock(&game->nullPlayerLock);
+
+    printf("debug3\n")
 
 }
 void sendActivePlayerAndTimerEnd (Game* game, int activePlayerIndex) {
@@ -985,11 +991,8 @@ void handleMoveTimeout (Game* game) {
 
     int i;
 
-    printf("Debug 1");
-
     printf("\nTempo scaduto per %s\n", game->activePlayer->client->nickname);
     for (i = 0; i < NUMBER_OF_PLAYERS; i++) {
-        printf("Debug 1.1");
         if (game->players[i]) {
             if (send(game->players[i]->client->socket, TIME_ENDED, strlen(TIME_ENDED), MSG_NOSIGNAL) < 0) {
                 pthread_mutex_lock(&game->nullPlayerLock);
@@ -999,9 +1002,6 @@ void handleMoveTimeout (Game* game) {
             }
         }
     }
-
-    printf("Debug 2");
-
 
 }
 void handleMatchLeftFromActivePlayer (Game* game, int activePlayerIndex) {
