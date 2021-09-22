@@ -561,7 +561,7 @@ Client* createClient (ulong id, int socket) {
     tv.tv_sec = 45;
     tv.tv_usec = 0;
 
-    if (setsockopt(socket, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof tv)) {
+    if (setsockopt(socket, SOL_SOCKET, SO_SNDTIMEO, (const char*)&tv, sizeof tv)) {
         perror("Errore nell'impostazione del timeout della socket");
         exit(EXIT_FAILURE);
     };
