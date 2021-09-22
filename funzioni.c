@@ -561,7 +561,7 @@ Client* createClient (ulong id, int socket) {
     tv.tv_sec = 45;
     tv.tv_usec = 0;
 
-    if (setsockopt(socket, SOL_SOCKET, SO_SNDTIMEO, (const char*)&tv, sizeof tv)) {
+    if (setsockopt(socket, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof tv)) {
         perror("Errore nell'impostazione del timeout della socket");
         exit(EXIT_FAILURE);
     };
@@ -649,6 +649,9 @@ void* clientThread (void* client) {
                 pthread_mutex_unlock(&activeUsers_lock);
                 log_SignOut(this->nickname, this->socket);
                 memset(this->nickname, 0, sizeof(this->nickname));
+            break;
+
+            case TIMEOUT_ACK:
             break;
 
             default:
@@ -987,18 +990,17 @@ void handleMoveTimeout (Game* game) {
 
     // Gestisce il timeout della mossa
 
-    int i; int val;
+    int i;
 
     printf("\nTempo scaduto per %s\n", game->activePlayer->client->nickname);
     for (i = 0; i < NUMBER_OF_PLAYERS; i++) {
         if (game->players[i]) {
-            if ((val = send(game->players[i]->client->socket, TIME_ENDED, strlen(TIME_ENDED), MSG_NOSIGNAL)) < 0) {
+            if (send(game->players[i]->client->socket, TIME_ENDED, strlen(TIME_ENDED), MSG_NOSIGNAL) < 0) {
                 pthread_mutex_lock(&game->nullPlayerLock);
                 free(game->players[i]);
                 game->players[i] = NULL;
                 pthread_mutex_lock(&game->nullPlayerLock);
             }
-            printf("Player: %s, val = %d\n", game->players[i]->client->nickname, val);
         }
     }
 

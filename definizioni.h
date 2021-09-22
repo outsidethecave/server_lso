@@ -65,6 +65,8 @@
 
 #define LOGOUT 8
 
+#define TIMEOUT_ACK 9
+
 #define TIMER_SECONDS 30
 
 
