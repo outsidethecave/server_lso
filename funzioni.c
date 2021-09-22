@@ -558,7 +558,7 @@ Client* createClient (ulong id, int socket) {
         exit(EXIT_FAILURE);
     };
 
-    tv.tv_sec = 630;
+    tv.tv_sec = 45;
     tv.tv_usec = 0;
 
     if (setsockopt(socket, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof tv)) {
