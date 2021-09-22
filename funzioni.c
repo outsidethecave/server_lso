@@ -973,14 +973,14 @@ void* timerThread (void* argument) {
 
     sleep(TIMER_SECONDS);
 
-    pthread_mutex_lock(&game->nullPlayerLock);
-    if (game->activePlayer == activePlayer) {
+    //pthread_mutex_lock(&game->nullPlayerLock);
+    if (activePlayer && game->activePlayer == activePlayer) {
         if (write(game->activePlayer->client->pipe[1], TIME_ENDEND_PIPE_MESSAGE_WRITE, strlen(TIME_ENDEND_PIPE_MESSAGE_WRITE)) < 0) {
             perror("Errore di scrittura sulla pipe");
             exit(EXIT_FAILURE);
         };
     }
-    pthread_mutex_unlock(&game->nullPlayerLock);
+    //pthread_mutex_unlock(&game->nullPlayerLock);
 
 }
 void handleMoveTimeout (Game* game) {

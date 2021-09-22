@@ -98,3 +98,49 @@
 
 [Martedì, 21-09-2021 20:53:28] DISCONNESSIONE: Il client 6 si disconnette
 
+[Mercoledì, 22-09-2021 10:24:14] CONNESSIONE CLIENT: si connette il client 6 con indirizzo 192.168.1.231
+
+[Mercoledì, 22-09-2021 10:24:14] CONNESSIONE CLIENT: si connette il client 9 con indirizzo 192.168.1.231
+
+[Mercoledì, 22-09-2021 10:24:29] ACCESSO UTENTE: 1qwe si registra al servizio dal client 9
+
+[Mercoledì, 22-09-2021 10:24:38] ACCESSO UTENTE: 3qwe si registra al servizio dal client 6
+
+[Mercoledì, 22-09-2021 10:24:57] DISCONNESSIONE: Il client 6 si disconnette
+
+[Mercoledì, 22-09-2021 10:24:57] DISCONNESSIONE: Il client 9 si disconnette
+
+[Mercoledì, 22-09-2021 10:25:02] CONNESSIONE CLIENT: si connette il client 12 con indirizzo 192.168.1.231
+
+[Mercoledì, 22-09-2021 10:25:02] CONNESSIONE CLIENT: si connette il client 13 con indirizzo 192.168.1.231
+
+[Mercoledì, 22-09-2021 10:25:23] DISCONNESSIONE: Il client 13 si disconnette
+
+[Mercoledì, 22-09-2021 10:25:23] DISCONNESSIONE: Il client 12 si disconnette
+
+[Mercoledì, 22-09-2021 10:25:29] CONNESSIONE CLIENT: si connette il client 16 con indirizzo 192.168.1.231
+
+[Mercoledì, 22-09-2021 10:25:29] CONNESSIONE CLIENT: si connette il client 17 con indirizzo 192.168.1.231
+
+[Mercoledì, 22-09-2021 10:25:34] DISCONNESSIONE: Il client 17 si disconnette
+
+[Mercoledì, 22-09-2021 10:25:35] DISCONNESSIONE: Il client 16 si disconnette
+
+[Mercoledì, 22-09-2021 10:26:08] CONNESSIONE CLIENT: si connette il client 20 con indirizzo 192.168.1.231
+
+[Mercoledì, 22-09-2021 10:26:15] CONNESSIONE CLIENT: si connette il client 21 con indirizzo 192.168.1.231
+
+[Mercoledì, 22-09-2021 10:26:15] CONNESSIONE CLIENT: si connette il client 24 con indirizzo 192.168.1.231
+
+[Mercoledì, 22-09-2021 10:26:23] ACCESSO UTENTE: 1qwe si registra al servizio dal client 24
+
+[Mercoledì, 22-09-2021 10:26:27] ACCESSO UTENTE: 2qwe si registra al servizio dal client 21
+
+[Mercoledì, 22-09-2021 10:26:32] ACCESSO UTENTE: 3qwe si registra al servizio dal client 20
+
+[Mercoledì, 22-09-2021 10:26:43] DISCONNESSIONE: Il client 20 si disconnette
+
+[Mercoledì, 22-09-2021 10:28:24] DISCONNESSIONE: Il client 21 si disconnette
+
+[Mercoledì, 22-09-2021 10:29:13] DISCONNESSIONE: Il client 24 si disconnette
+
