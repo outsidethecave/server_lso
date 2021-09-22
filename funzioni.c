@@ -892,9 +892,7 @@ void setNewActivePlayer (Game* game, int* activePlayerIndex) {
 
     printf("debug1\n");
 
-    pthread_mutex_lock(&game->nullPlayerLock);
-
-    printf("debug2\n");
+    //pthread_mutex_lock(&game->nullPlayerLock);
 
     int loopedOnce = FALSE;
     int i;
@@ -920,9 +918,9 @@ void setNewActivePlayer (Game* game, int* activePlayerIndex) {
 
     game->activePlayer = game->players[*activePlayerIndex];
 
-    pthread_mutex_unlock(&game->nullPlayerLock);
+    //pthread_mutex_unlock(&game->nullPlayerLock);
 
-    printf("debug3\n");
+    printf("debug2\n");
 
 }
 void sendActivePlayerAndTimerEnd (Game* game, int activePlayerIndex) {
