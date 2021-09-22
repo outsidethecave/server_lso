@@ -87,6 +87,8 @@ void endGame (Game* game, char* winner);
 
 //[END] Funzioni di gioco
 
+void setSocketTimeoutSeconds(int socket, int seconds);
+
 void setGridSizeAndWinCondition ();
 void prepareRand();
 

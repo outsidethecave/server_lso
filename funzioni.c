@@ -544,7 +544,6 @@ Client* createClient (ulong id, int socket) {
 
     Client* client;
     int p[2];
-    struct timeval tv;
 
     client = (Client*)malloc(sizeof(Client));
     client->id = id;
@@ -558,13 +557,7 @@ Client* createClient (ulong id, int socket) {
         exit(EXIT_FAILURE);
     };
 
-    tv.tv_sec = 45;
-    tv.tv_usec = 0;
-
-    if (setsockopt(socket, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof tv)) {
-        perror("Errore nell'impostazione del timeout della socket");
-        exit(EXIT_FAILURE);
-    };
+    setSocketTimeoutSeconds(socket, 600);
 
     return client;
 
@@ -724,6 +717,8 @@ void handleLeaveMatch (Client* client) {
     // Fa abbandonare la partita in corso al client che la invoca
 
     int gameID = client->activeGame;
+
+    setSocketTimeoutSeconds(client->socket, 600);
 
     pthread_mutex_lock(&games_lock);
     pthread_mutex_lock(&getGameByID(games, gameID)->nullPlayerLock);
@@ -1145,6 +1140,7 @@ void endGame (Game* game, char* winner) {
     freeGrid(game->grid);
     for (i = 0; i < NUMBER_OF_PLAYERS; i++) {
         if (game->players[i]) {
+            setSocketTimeoutSeconds(game->activePlayer->client->socket, 600);
             game->players[i]->client->activeGame = -1;
             game->players[i]->client->positionInArrayOfPlayers = -1;
         }
@@ -1233,6 +1229,8 @@ void makePlayers (Game* game) {
 
     for (p = clientsLookingForMatch; p; p = p->next) {
         client = p->data;
+
+        setSocketTimeoutSeconds(client->socket, 45);
 
         client->activeGame = gamenum;
         client->positionInArrayOfPlayers = i;
@@ -1332,6 +1330,19 @@ void sendDataToAllPlayers (Game* game, char* data) {
 
 // [END] Funzioni di gioco
 
+void setSocketTimeoutSeconds(int socket, int seconds) {
+
+    struct timeval tv;
+
+    tv.tv_sec = seconds;
+    tv.tv_usec = 0;
+
+    if (setsockopt(socket, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof tv)) {
+        perror("Errore nell'impostazione del timeout della socket");
+        exit(EXIT_FAILURE);
+    };
+
+}
 
 void setGridSizeAndWinCondition () {
 
