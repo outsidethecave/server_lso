@@ -39,6 +39,8 @@ pthread_mutex_t lookingForMatch_lock  = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t games_lock            = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t gamenum_lock          = PTHREAD_MUTEX_INITIALIZER;
 
+sigset_t set;
+
 
 
 int main (int argc, char* argv[]) {
@@ -70,7 +72,13 @@ int main (int argc, char* argv[]) {
 
     Client* client;
 
-
+    // Blocco di SIGPIPE
+    sigemptyset(&set);
+    sigaddset(&set, SIGPIPE);
+    if (pthread_sigmask(SIG_BLOCK, &set, NULL) != 0) {
+        perror("pthread_sigmask");
+        exit(-1);
+    }
 
     // Apertura del file degli utenti
     users_fd = open(USERS_FILE, O_RDWR | O_CREAT | O_APPEND, S_IRWXU);
