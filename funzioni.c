@@ -987,17 +987,18 @@ void handleMoveTimeout (Game* game) {
 
     // Gestisce il timeout della mossa
 
-    int i;
+    int i; int val;
 
     printf("\nTempo scaduto per %s\n", game->activePlayer->client->nickname);
     for (i = 0; i < NUMBER_OF_PLAYERS; i++) {
         if (game->players[i]) {
-            if (send(game->players[i]->client->socket, TIME_ENDED, strlen(TIME_ENDED), MSG_NOSIGNAL) < 0) {
+            if ((val = send(game->players[i]->client->socket, TIME_ENDED, strlen(TIME_ENDED), MSG_NOSIGNAL)) < 0) {
                 pthread_mutex_lock(&game->nullPlayerLock);
                 free(game->players[i]);
                 game->players[i] = NULL;
                 pthread_mutex_lock(&game->nullPlayerLock);
             }
+            printf("Player: %s, val = %d\n", game->players[i]->client->nickname, val);
         }
     }
 
