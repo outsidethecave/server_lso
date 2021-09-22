@@ -557,7 +557,7 @@ Client* createClient (ulong id, int socket) {
         exit(EXIT_FAILURE);
     };
 
-    setSocketTimeoutSeconds(socket, 600);
+    setSocketTimeoutSeconds(socket, 45);
 
     return client;
 
@@ -717,8 +717,6 @@ void handleLeaveMatch (Client* client) {
     // Fa abbandonare la partita in corso al client che la invoca
 
     int gameID = client->activeGame;
-
-    setSocketTimeoutSeconds(client->socket, 600);
 
     pthread_mutex_lock(&games_lock);
     pthread_mutex_lock(&getGameByID(games, gameID)->nullPlayerLock);
@@ -1140,7 +1138,6 @@ void endGame (Game* game, char* winner) {
     freeGrid(game->grid);
     for (i = 0; i < NUMBER_OF_PLAYERS; i++) {
         if (game->players[i]) {
-            setSocketTimeoutSeconds(game->activePlayer->client->socket, 600);
             game->players[i]->client->activeGame = -1;
             game->players[i]->client->positionInArrayOfPlayers = -1;
         }
@@ -1229,8 +1226,6 @@ void makePlayers (Game* game) {
 
     for (p = clientsLookingForMatch; p; p = p->next) {
         client = p->data;
-
-        setSocketTimeoutSeconds(client->socket, 45);
 
         client->activeGame = gamenum;
         client->positionInArrayOfPlayers = i;
