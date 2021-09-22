@@ -890,11 +890,11 @@ void setNewActivePlayer (Game* game, int* activePlayerIndex) {
 
     // Imposta il prossimo giocatore attivo, assicurandosi di terminare la partita qualora abbiano abbandonato tutti
 
-    printf("debug1\n")
+    printf("debug1\n");
 
     pthread_mutex_lock(&game->nullPlayerLock);
 
-    printf("debug2\n")
+    printf("debug2\n");
 
     int loopedOnce = FALSE;
     int i;
@@ -922,7 +922,7 @@ void setNewActivePlayer (Game* game, int* activePlayerIndex) {
 
     pthread_mutex_unlock(&game->nullPlayerLock);
 
-    printf("debug3\n")
+    printf("debug3\n");
 
 }
 void sendActivePlayerAndTimerEnd (Game* game, int activePlayerIndex) {
